@@ -1,0 +1,784 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cyberpunk Particle System</title>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            overflow: hidden;
+            background: #000;
+            font-family: 'Orbitron', monospace;
+        }
+        #canvas-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            z-index: 5;
+        }
+        #webcam {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            object-fit: cover;
+            transform: scaleX(-1);
+            z-index: 0;
+        }
+        /* Vignette Effect */
+        .vignette {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            pointer-events: none;
+            background: radial-gradient(ellipse at center, transparent 40%, rgba(0,0,0,0.8) 100%);
+            z-index: 10;
+        }
+        /* Scanlines */
+        .scanlines {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            pointer-events: none;
+            background: repeating-linear-gradient(
+                0deg,
+                transparent,
+                transparent 2px,
+                rgba(0, 255, 255, 0.03) 2px,
+                rgba(0, 255, 255, 0.03) 4px
+            );
+            z-index: 11;
+            animation: scanlineMove 8s linear infinite;
+        }
+        @keyframes scanlineMove {
+            0% { transform: translateY(0); }
+            100% { transform: translateY(100px); }
+        }
+        /* Grid Background */
+        .grid-bg {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            pointer-events: none;
+            background-image: 
+                linear-gradient(rgba(0, 255, 255, 0.05) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(0, 255, 255, 0.05) 1px, transparent 1px);
+            background-size: 50px 50px;
+            z-index: 1;
+            animation: gridPulse 4s ease-in-out infinite;
+        }
+        @keyframes gridPulse {
+            0%, 100% { opacity: 0.3; }
+            50% { opacity: 0.6; }
+        }
+        /* HUD Elements */
+        .hud {
+            position: fixed;
+            color: #00FFFF;
+            font-size: 14px;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            z-index: 100;
+            text-shadow: 0 0 10px #00FFFF, 0 0 20px #00FFFF;
+        }
+        .hud-top-left {
+            top: 20px;
+            left: 20px;
+        }
+        .hud-top-right {
+            top: 20px;
+            right: 20px;
+            text-align: right;
+        }
+        .hud-bottom-left {
+            bottom: 20px;
+            left: 20px;
+        }
+        .hud-bottom-right {
+            bottom: 20px;
+            right: 20px;
+            text-align: right;
+        }
+        .hud-value {
+            font-size: 24px;
+            font-weight: 700;
+        }
+        .hud-label {
+            font-size: 10px;
+            opacity: 0.7;
+        }
+        .status-active {
+            color: #00FF88;
+            text-shadow: 0 0 10px #00FF88, 0 0 20px #00FF88;
+        }
+        .status-inactive {
+            color: #FF0066;
+            text-shadow: 0 0 10px #FF0066, 0 0 20px #FF0066;
+        }
+        #text-canvas {
+            display: none;
+        }
+        .mode-indicator {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 18px;
+            color: #00FFFF;
+            text-shadow: 0 0 20px #00FFFF;
+            z-index: 100;
+            opacity: 0;
+            transition: opacity 0.3s;
+            pointer-events: none;
+        }
+        .mode-indicator.active {
+            opacity: 1;
+        }
+    </style>
+</head>
+<body>
+    <div class="grid-bg"></div>
+    <div class="vignette"></div>
+    <div class="scanlines"></div>
+    
+    <div id="canvas-container"></div>
+    <video id="webcam" autoplay playsinline></video>
+    <canvas id="text-canvas"></canvas>
+    
+    <!-- HUD Elements -->
+    <div class="hud hud-top-left">
+        <div class="hud-label">FRAMES/SEC</div>
+        <div class="hud-value" id="fps-display">60</div>
+    </div>
+    
+    <div class="hud hud-top-right">
+        <div class="hud-label">PARTICLE COUNT</div>
+        <div class="hud-value" id="particle-display">12000</div>
+    </div>
+    
+    <div class="hud hud-bottom-left">
+        <div class="hud-label">LEFT HAND</div>
+        <div class="hud-value" id="left-hand-status">OFFLINE</div>
+        <div class="hud-label" style="margin-top: 10px;">FINGERS</div>
+        <div class="hud-value" id="left-fingers">0</div>
+    </div>
+    
+    <div class="hud hud-bottom-right">
+        <div class="hud-label">RIGHT HAND</div>
+        <div class="hud-value" id="right-hand-status">OFFLINE</div>
+        <div class="hud-label" style="margin-top: 10px;">MODE</div>
+        <div class="hud-value" id="right-mode">SCATTER</div>
+    </div>
+    
+    <div class="mode-indicator" id="mode-indicator">BASKETBALL MODE ACTIVATED</div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
+
+    <script>
+        // ============================================
+        // CONFIGURATION
+        // ============================================
+        const CONFIG = {
+            PARTICLE_COUNT: 12000,
+            PARTICLE_SIZE: 2.4,
+            LERP_FACTOR: 0.16,
+            REPULSION_STRENGTH: 0.8,
+            REPULSION_RADIUS: 150,
+            COLORS: {
+                NEON_BLUE: 0x00FFFF,
+                NEON_YELLOW: 0xFFFF00,
+                NEON_PINK: 0xFF00FF,
+                NEON_GREEN: 0x00FF88,
+                ORANGE: 0xFF8800
+            },
+            TEXTS: {
+                1: "Hello World",
+                2: "Iam Arun Arunisto",
+                3: "Welcome To The Future",
+                4: "Good Bye"
+            }
+        };
+
+        // ============================================
+        // GLOBAL STATE
+        // ============================================
+        let scene, camera, renderer, particles;
+        let particlePositions, particleTargets, particleColors, particleVelocities;
+        let currentText = "Hello World";
+        let currentColor = CONFIG.COLORS.NEON_BLUE;
+        let targetPositions = [];
+        let leftHandData = null;
+        let rightHandData = null;
+        let leftFingerCount = 0;
+        let rightFingerCount = 0;
+        let isNebulaMode = false;
+        let isCatchMode = false;
+        let isBasketballMode = false;
+        let basketballPositions = [];
+        let time = 0;
+        let frameCount = 0;
+        let lastFPSUpdate = performance.now();
+        let fps = 60;
+
+        // ============================================
+        // THREE.JS SETUP
+        // ============================================
+        function initThreeJS() {
+            scene = new THREE.Scene();
+            // Transparent background to show webcam
+
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 2000);
+            camera.position.z = 500;
+
+            renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+            renderer.setClearColor(0x000000, 0);
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+            document.getElementById('canvas-container').appendChild(renderer.domElement);
+
+            createParticles();
+            generateTextPositions(currentText);
+
+            window.addEventListener('resize', onWindowResize);
+        }
+
+        function createParticles() {
+            const geometry = new THREE.BufferGeometry();
+            particlePositions = new Float32Array(CONFIG.PARTICLE_COUNT * 3);
+            particleTargets = new Float32Array(CONFIG.PARTICLE_COUNT * 3);
+            particleColors = new Float32Array(CONFIG.PARTICLE_COUNT * 3);
+            particleVelocities = new Float32Array(CONFIG.PARTICLE_COUNT * 3);
+
+            // Initialize particles at random positions
+            for (let i = 0; i < CONFIG.PARTICLE_COUNT; i++) {
+                const i3 = i * 3;
+                particlePositions[i3] = (Math.random() - 0.5) * 1000;
+                particlePositions[i3 + 1] = (Math.random() - 0.5) * 1000;
+                particlePositions[i3 + 2] = (Math.random() - 0.5) * 200;
+
+                particleTargets[i3] = particlePositions[i3];
+                particleTargets[i3 + 1] = particlePositions[i3 + 1];
+                particleTargets[i3 + 2] = 0;
+
+                particleVelocities[i3] = 0;
+                particleVelocities[i3 + 1] = 0;
+                particleVelocities[i3 + 2] = 0;
+
+                // Default color
+                const color = new THREE.Color(currentColor);
+                particleColors[i3] = color.r;
+                particleColors[i3 + 1] = color.g;
+                particleColors[i3 + 2] = color.b;
+            }
+
+            geometry.setAttribute('position', new THREE.BufferAttribute(particlePositions, 3));
+            geometry.setAttribute('color', new THREE.BufferAttribute(particleColors, 3));
+
+            const material = new THREE.PointsMaterial({
+                size: CONFIG.PARTICLE_SIZE,
+                vertexColors: true,
+                blending: THREE.AdditiveBlending,
+                transparent: true,
+                opacity: 0.9,
+                sizeAttenuation: true
+            });
+
+            particles = new THREE.Points(geometry, material);
+            scene.add(particles);
+        }
+
+        // ============================================
+        // TEXT GENERATION
+        // ============================================
+        function generateTextPositions(text) {
+            const canvas = document.getElementById('text-canvas');
+            const ctx = canvas.getContext('2d');
+            
+            canvas.width = 1200;
+            canvas.height = 300;
+            
+            ctx.fillStyle = '#000';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            ctx.font = 'bold 75px Orbitron, monospace';
+            ctx.fillStyle = '#FFF';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(text, canvas.width / 2, canvas.height / 2);
+            
+            const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            const data = imageData.data;
+            
+            targetPositions = [];
+            const step = 3; // Sample every 3 pixels
+            
+            for (let y = 0; y < canvas.height; y += step) {
+                for (let x = 0; x < canvas.width; x += step) {
+                    const i = (y * canvas.width + x) * 4;
+                    if (data[i] > 128) {
+                        targetPositions.push({
+                            x: (x - canvas.width / 2) * 0.8,
+                            y: (canvas.height / 2 - y) * 0.8,
+                            z: 0
+                        });
+                    }
+                }
+            }
+
+            // Assign targets to particles
+            assignTargetsToParticles();
+        }
+
+        function assignTargetsToParticles() {
+            const posCount = targetPositions.length;
+            
+            for (let i = 0; i < CONFIG.PARTICLE_COUNT; i++) {
+                const i3 = i * 3;
+                if (i < posCount) {
+                    particleTargets[i3] = targetPositions[i].x;
+                    particleTargets[i3 + 1] = targetPositions[i].y;
+                    particleTargets[i3 + 2] = targetPositions[i].z;
+                } else {
+                    // Extra particles go to random positions around the text
+                    const angle = Math.random() * Math.PI * 2;
+                    const radius = 200 + Math.random() * 300;
+                    particleTargets[i3] = Math.cos(angle) * radius;
+                    particleTargets[i3 + 1] = Math.sin(angle) * radius;
+                    particleTargets[i3 + 2] = (Math.random() - 0.5) * 100;
+                }
+            }
+        }
+
+        // ============================================
+        // BASKETBALL GENERATION (Fibonacci Sphere)
+        // ============================================
+        function generateBasketballPositions(centerX, centerY, centerZ, radius = 100) {
+            basketballPositions = [];
+            const n = CONFIG.PARTICLE_COUNT;
+            const goldenRatio = (1 + Math.sqrt(5)) / 2;
+            
+            for (let i = 0; i < n; i++) {
+                const theta = 2 * Math.PI * i / goldenRatio;
+                const phi = Math.acos(1 - 2 * (i + 0.5) / n);
+                
+                const x = radius * Math.sin(phi) * Math.cos(theta);
+                const y = radius * Math.sin(phi) * Math.sin(theta);
+                const z = radius * Math.cos(phi);
+                
+                // Calculate if this point is on a "seam" (black lines)
+                const isSeam = isOnBasketballSeam(theta, phi);
+                
+                basketballPositions.push({
+                    x: centerX + x,
+                    y: centerY + y,
+                    z: centerZ + z,
+                    isSeam: isSeam
+                });
+            }
+        }
+
+        function isOnBasketballSeam(theta, phi) {
+            // Create basketball seam pattern
+            const seamWidth = 0.15;
+            
+            // Horizontal seam
+            if (Math.abs(phi - Math.PI / 2) < seamWidth) return true;
+            
+            // Vertical seams (4 curved lines)
+            const normalizedTheta = ((theta % (Math.PI / 2)) + Math.PI / 2) % (Math.PI / 2);
+            if (normalizedTheta < seamWidth || normalizedTheta > (Math.PI / 2 - seamWidth)) return true;
+            
+            return false;
+        }
+
+        // ============================================
+        // MEDIAPIPE HANDS SETUP
+        // ============================================
+        function initMediaPipe() {
+            const videoElement = document.getElementById('webcam');
+            
+            const hands = new Hands({
+                locateFile: (file) => {
+                    return `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`;
+                }
+            });
+
+            hands.setOptions({
+                maxNumHands: 2,
+                modelComplexity: 1,
+                minDetectionConfidence: 0.7,
+                minTrackingConfidence: 0.5
+            });
+
+            hands.onResults(onHandResults);
+
+            const cameraObj = new Camera(videoElement, {
+                onFrame: async () => {
+                    await hands.send({ image: videoElement });
+                },
+                width: 640,
+                height: 480
+            });
+
+            cameraObj.start();
+        }
+
+        function onHandResults(results) {
+            leftHandData = null;
+            rightHandData = null;
+            leftFingerCount = 0;
+            rightFingerCount = 0;
+
+            if (results.multiHandLandmarks && results.multiHandedness) {
+                for (let i = 0; i < results.multiHandLandmarks.length; i++) {
+                    const landmarks = results.multiHandLandmarks[i];
+                    const handedness = results.multiHandedness[i].label;
+                    
+                    // MediaPipe mirrors the image, so we flip the labels
+                    if (handedness === 'Right') {
+                        leftHandData = landmarks;
+                        leftFingerCount = countExtendedFingers(landmarks, 'left');
+                    } else {
+                        rightHandData = landmarks;
+                        rightFingerCount = countExtendedFingers(landmarks, 'right');
+                    }
+                }
+            }
+
+            updateHandStates();
+        }
+
+        function countExtendedFingers(landmarks, hand) {
+            let count = 0;
+            
+            // Thumb (different logic - check horizontal distance)
+            const thumbTip = landmarks[4];
+            const thumbIP = landmarks[3];
+            const thumbMCP = landmarks[2];
+            
+            if (hand === 'left') {
+                if (thumbTip.x < thumbIP.x) count++;
+            } else {
+                if (thumbTip.x > thumbIP.x) count++;
+            }
+            
+            // Index finger
+            if (landmarks[8].y < landmarks[6].y) count++;
+            
+            // Middle finger
+            if (landmarks[12].y < landmarks[10].y) count++;
+            
+            // Ring finger
+            if (landmarks[16].y < landmarks[14].y) count++;
+            
+            // Pinky
+            if (landmarks[20].y < landmarks[18].y) count++;
+            
+            return count;
+        }
+
+        function updateHandStates() {
+            // Update HUD
+            document.getElementById('left-hand-status').textContent = leftHandData ? 'ONLINE' : 'OFFLINE';
+            document.getElementById('left-hand-status').className = leftHandData ? 'hud-value status-active' : 'hud-value status-inactive';
+            document.getElementById('left-fingers').textContent = leftFingerCount;
+            
+            document.getElementById('right-hand-status').textContent = rightHandData ? 'ONLINE' : 'OFFLINE';
+            document.getElementById('right-hand-status').className = rightHandData ? 'hud-value status-active' : 'hud-value status-inactive';
+
+            // Left hand: Shape controller
+            if (leftHandData) {
+                isCatchMode = leftFingerCount === 5;
+                
+                if (!isCatchMode && leftFingerCount >= 1 && leftFingerCount <= 4) {
+                    const newText = CONFIG.TEXTS[leftFingerCount];
+                    const colors = [CONFIG.COLORS.NEON_BLUE, CONFIG.COLORS.NEON_YELLOW, CONFIG.COLORS.NEON_PINK, CONFIG.COLORS.NEON_GREEN];
+                    const newColor = colors[leftFingerCount - 1];
+                    
+                    if (newText !== currentText) {
+                        currentText = newText;
+                        currentColor = newColor;
+                        generateTextPositions(currentText);
+                        updateParticleColors(currentColor);
+                    }
+                }
+            } else {
+                isCatchMode = false;
+            }
+
+            // Right hand: Physics interactor
+            if (rightHandData) {
+                isNebulaMode = rightFingerCount === 5;
+                document.getElementById('right-mode').textContent = isNebulaMode ? 'NEBULA' : 'SCATTER';
+            } else {
+                isNebulaMode = false;
+                document.getElementById('right-mode').textContent = 'SCATTER';
+            }
+
+            // Check for basketball mode (both hands open)
+            const wasBasketballMode = isBasketballMode;
+            isBasketballMode = isNebulaMode && isCatchMode;
+            
+            if (isBasketballMode && !wasBasketballMode) {
+                // Just activated basketball mode
+                document.getElementById('mode-indicator').classList.add('active');
+                setTimeout(() => {
+                    document.getElementById('mode-indicator').classList.remove('active');
+                }, 2000);
+            }
+        }
+
+        function updateParticleColors(color) {
+            const threeColor = new THREE.Color(color);
+            for (let i = 0; i < CONFIG.PARTICLE_COUNT; i++) {
+                const i3 = i * 3;
+                particleColors[i3] = threeColor.r;
+                particleColors[i3 + 1] = threeColor.g;
+                particleColors[i3 + 2] = threeColor.b;
+            }
+            particles.geometry.attributes.color.needsUpdate = true;
+        }
+
+        // ============================================
+        // COORDINATE CONVERSION
+        // ============================================
+        function handToWorld(landmark) {
+            // Convert normalized coordinates (0-1) to world coordinates
+            const x = (1 - landmark.x) * window.innerWidth;
+            const y = landmark.y * window.innerHeight;
+            
+            // Convert screen coordinates to Three.js world coordinates
+            const vector = new THREE.Vector3(
+                (x / window.innerWidth) * 2 - 1,
+                -(y / window.innerHeight) * 2 + 1,
+                0.5
+            );
+            
+            vector.unproject(camera);
+            const dir = vector.sub(camera.position).normalize();
+            const distance = -camera.position.z / dir.z;
+            const pos = camera.position.clone().add(dir.multiplyScalar(distance));
+            
+            return pos;
+        }
+
+        // ============================================
+        // PHYSICS UPDATE
+        // ============================================
+        function updateParticles() {
+            time += 0.016;
+            
+            if (isBasketballMode && leftHandData) {
+                updateBasketballMode();
+            } else if (isNebulaMode) {
+                updateNebulaMode();
+            } else {
+                updateNormalMode();
+            }
+            
+            // Apply right hand interaction (when not in basketball mode)
+            if (rightHandData && !isBasketballMode) {
+                applyRightHandInteraction();
+            }
+            
+            particles.geometry.attributes.position.needsUpdate = true;
+            particles.geometry.attributes.color.needsUpdate = true;
+        }
+
+        function updateNormalMode() {
+            for (let i = 0; i < CONFIG.PARTICLE_COUNT; i++) {
+                const i3 = i * 3;
+                
+                // Lerp towards target
+                particlePositions[i3] += (particleTargets[i3] - particlePositions[i3]) * CONFIG.LERP_FACTOR;
+                particlePositions[i3 + 1] += (particleTargets[i3 + 1] - particlePositions[i3 + 1]) * CONFIG.LERP_FACTOR;
+                particlePositions[i3 + 2] += (particleTargets[i3 + 2] - particlePositions[i3 + 2]) * CONFIG.LERP_FACTOR;
+            }
+        }
+
+        function updateNebulaMode() {
+            for (let i = 0; i < CONFIG.PARTICLE_COUNT; i++) {
+                const i3 = i * 3;
+                
+                // Generate nebula target positions (full 3D space)
+                if (!particleVelocities[i3 + 2] || Math.random() < 0.01) {
+                    const angle = Math.random() * Math.PI * 2;
+                    const radius = 200 + Math.random() * 400;
+                    const height = (Math.random() - 0.5) * 600;
+                    
+                    particleTargets[i3] = Math.cos(angle) * radius;
+                    particleTargets[i3 + 1] = Math.sin(angle) * radius;
+                    particleTargets[i3 + 2] = height + (Math.random() - 0.5) * 200;
+                }
+                
+                // Slower lerp for nebula
+                particlePositions[i3] += (particleTargets[i3] - particlePositions[i3]) * 0.02;
+                particlePositions[i3 + 1] += (particleTargets[i3 + 1] - particlePositions[i3 + 1]) * 0.02;
+                particlePositions[i3 + 2] += (particleTargets[i3 + 2] - particlePositions[i3 + 2]) * 0.02;
+                
+                // Add subtle floating motion
+                particlePositions[i3 + 1] += Math.sin(time * 2 + i * 0.01) * 0.5;
+            }
+        }
+
+        function updateBasketballMode() {
+            // Get left palm center (landmark 9)
+            const palmCenter = handToWorld(leftHandData[9]);
+            
+            // Generate basketball if not done
+            if (basketballPositions.length === 0) {
+                generateBasketballPositions(0, 0, 0, 80);
+            }
+            
+            // Rotation
+            const rotationSpeed = time * 2;
+            
+            for (let i = 0; i < CONFIG.PARTICLE_COUNT; i++) {
+                const i3 = i * 3;
+                const bp = basketballPositions[i];
+                
+                // Rotate the basketball position
+                const cosR = Math.cos(rotationSpeed);
+                const sinR = Math.sin(rotationSpeed);
+                const rotX = bp.x * cosR - bp.z * sinR;
+                const rotZ = bp.x * sinR + bp.z * cosR;
+                
+                // Target position with palm offset
+                const targetX = palmCenter.x + rotX;
+                const targetY = palmCenter.y + bp.y;
+                const targetZ = palmCenter.z + rotZ;
+                
+                // Calculate distance to target
+                const dx = targetX - particlePositions[i3];
+                const dy = targetY - particlePositions[i3 + 1];
+                const dz = targetZ - particlePositions[i3 + 2];
+                const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
+                
+                // Bouncing trajectory (high-frequency Y sine wave)
+                const bouncePhase = i * 0.1 + time * 15;
+                const bounceAmount = Math.max(0, Math.sin(bouncePhase)) * Math.min(1, dist / 100) * 30;
+                
+                // Faster attraction for basketball mode
+                const attractionSpeed = 0.12;
+                particlePositions[i3] += dx * attractionSpeed;
+                particlePositions[i3 + 1] += (dy + bounceAmount) * attractionSpeed;
+                particlePositions[i3 + 2] += dz * attractionSpeed;
+                
+                // Update colors (orange with black seams)
+                if (bp.isSeam) {
+                    particleColors[i3] = 0.1;
+                    particleColors[i3 + 1] = 0.1;
+                    particleColors[i3 + 2] = 0.1;
+                } else {
+                    particleColors[i3] = 1.0;
+                    particleColors[i3 + 1] = 0.5;
+                    particleColors[i3 + 2] = 0.0;
+                }
+            }
+        }
+
+        function applyRightHandInteraction() {
+            // Get index finger tip position (landmark 8)
+            const fingerTip = handToWorld(rightHandData[8]);
+            
+            for (let i = 0; i < CONFIG.PARTICLE_COUNT; i++) {
+                const i3 = i * 3;
+                
+                const dx = particlePositions[i3] - fingerTip.x;
+                const dy = particlePositions[i3 + 1] - fingerTip.y;
+                
+                // For nebula mode, also consider Z
+                let dz = 0;
+                if (isNebulaMode) {
+                    dz = particlePositions[i3 + 2] - fingerTip.z;
+                }
+                
+                const distSq = dx * dx + dy * dy + dz * dz;
+                const dist = Math.sqrt(distSq);
+                
+                if (dist < CONFIG.REPULSION_RADIUS) {
+                    const force = (1 - dist / CONFIG.REPULSION_RADIUS) * CONFIG.REPULSION_STRENGTH;
+                    
+                    if (isNebulaMode) {
+                        // Water ripple effect in nebula mode
+                        const ripplePhase = dist * 0.1 - time * 10;
+                        const rippleForce = Math.sin(ripplePhase) * force * 0.5;
+                        
+                        particlePositions[i3] += (dx / dist) * force * 15 + Math.sin(ripplePhase) * 5;
+                        particlePositions[i3 + 1] += (dy / dist) * force * 15 + Math.cos(ripplePhase) * 5;
+                        particlePositions[i3 + 2] += (dz / dist) * force * 15 + rippleForce * 10;
+                    } else {
+                        // Strong XY-only scatter (flat, no Z bulge)
+                        if (dist > 0.001) {
+                            particlePositions[i3] += (dx / dist) * force * 25;
+                            particlePositions[i3 + 1] += (dy / dist) * force * 25;
+                            // Keep Z unchanged for flat repulsion
+                        }
+                    }
+                }
+            }
+        }
+
+        // ============================================
+        // ANIMATION LOOP
+        // ============================================
+        function animate() {
+            requestAnimationFrame(animate);
+            
+            updateParticles();
+            renderer.render(scene, camera);
+            
+            // FPS counter
+            frameCount++;
+            const now = performance.now();
+            if (now - lastFPSUpdate >= 1000) {
+                fps = frameCount;
+                frameCount = 0;
+                lastFPSUpdate = now;
+                document.getElementById('fps-display').textContent = fps;
+            }
+        }
+
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        // ============================================
+        // INITIALIZATION
+        // ============================================
+        function init() {
+            initThreeJS();
+            initMediaPipe();
+            animate();
+            
+            document.getElementById('particle-display').textContent = CONFIG.PARTICLE_COUNT;
+        }
+
+        // Start when DOM is ready
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', init);
+        } else {
+            init();
+        }
+    </script>
+</body>
+</html>
