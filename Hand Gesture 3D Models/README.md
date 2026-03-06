@@ -67,7 +67,7 @@ Hand Gesture 3D Models/
 | Gesture | Hand | Action |
 |---------|------|--------|
 | ✊ **Fist** (no model) | Left | Summon with particle formation |
-| ✊ **Fist** (model active) | Left | Dismiss with particle scatter |
+| ✊ **Fist** (model active) | Right | Dismiss with particle scatter |
 | 🤏 **Pinch** | Right | Scale model size |
 | 🙌 **Both Open** (5+5) | Both | Free rotation control |
 

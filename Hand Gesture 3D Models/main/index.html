@@ -690,7 +690,7 @@
                     }, 800);
                 }
             }
-            else if (modelActivated && !isScattering && !isFormingModel && leftHandDetected && leftHandFingerCount === 0) {
+            else if (modelActivated && !isScattering && !isFormingModel && rightHandDetected && rightHandFingerCount === 0) {
                 if (canSwitch) {
                     canSwitch = false;
                     startParticleScatter();
@@ -803,8 +803,6 @@
                         let displayColor = '#FF6B6B';
                         if (!modelActivated && leftHandFingerCount === 0) {
                             displayColor = isFormingModel ? '#00FFFF' : '#00FF00';
-                        } else if (modelActivated && leftHandFingerCount === 0) {
-                            displayColor = isScattering ? '#FF6B6B' : '#FF9500';
                         } else if (modelActivated && leftHandFingerCount === 3) {
                             displayColor = '#FFD700';
                         } else if (modelActivated && leftHandFingerCount === 5 && isRotating) {
@@ -819,12 +817,6 @@
                                 gestureText = `FORMING ⚡ ${Math.round(formationProgress * 100)}%`;
                             } else {
                                 gestureText = 'FIST ✊ (summon)';
-                            }
-                        } else if (modelActivated && leftHandFingerCount === 0) {
-                            if (isScattering) {
-                                gestureText = `SCATTER 💥 ${Math.round(scatterProgress * 100)}%`;
-                            } else {
-                                gestureText = 'FIST ✊ (dismiss)';
                             }
                         } else if (modelActivated && leftHandFingerCount === 3) {
                             gestureText = '3 FINGERS ✋';
@@ -912,6 +904,16 @@
                             canvasCtx.fillStyle = '#9B59B6';
                             canvasCtx.textAlign = 'center';
                             canvasCtx.fillText('OPEN 🖐', rx, ry);
+                        } else if (modelActivated && rightHandFingerCount === 0) {
+                            if (isScattering) {
+                                canvasCtx.fillStyle = '#FF6B6B';
+                                canvasCtx.textAlign = 'center';
+                                canvasCtx.fillText(`SCATTER 💥 ${Math.round(scatterProgress * 100)}%`, rx, ry);
+                            } else {
+                                canvasCtx.fillStyle = '#FF9500';
+                                canvasCtx.textAlign = 'center';
+                                canvasCtx.fillText('FIST ✊ (dismiss)', rx, ry);
+                            }
                         } else {
                             canvasCtx.fillStyle = isPinching ? '#FFD700' : '#4ECDC4';
                             canvasCtx.textAlign = 'center';
@@ -958,9 +960,9 @@
                     canvasCtx.stroke();
                 }
                 
-                if (isScattering && leftHandDetected) {
-                    const leftX = leftHandPos.x * canvasElement.width;
-                    const leftY = leftHandPos.y * canvasElement.height;
+                if (isScattering && rightHandDetected) {
+                    const rightScatterX = rightHandPos.x * canvasElement.width;
+                    const rightScatterY = rightHandPos.y * canvasElement.height;
                     
                     const numLines = 12;
                     const lineLength = 40 + scatterProgress * 60;
@@ -970,20 +972,20 @@
                     for (let j = 0; j < numLines; j++) {
                         const angle = (j / numLines) * Math.PI * 2;
                         canvasCtx.beginPath();
-                        canvasCtx.moveTo(leftX + Math.cos(angle) * 30, leftY + Math.sin(angle) * 30);
-                        canvasCtx.lineTo(leftX + Math.cos(angle) * lineLength, leftY + Math.sin(angle) * lineLength);
+                        canvasCtx.moveTo(rightScatterX + Math.cos(angle) * 30, rightScatterY + Math.sin(angle) * 30);
+                        canvasCtx.lineTo(rightScatterX + Math.cos(angle) * lineLength, rightScatterY + Math.sin(angle) * lineLength);
                         canvasCtx.stroke();
                     }
                     
                     canvasCtx.beginPath();
-                    canvasCtx.arc(leftX, leftY, 25, 0, 2 * Math.PI);
+                    canvasCtx.arc(rightScatterX, rightScatterY, 25, 0, 2 * Math.PI);
                     canvasCtx.fillStyle = 'rgba(255, 107, 107, 0.7)';
                     canvasCtx.fill();
                     
                     canvasCtx.font = 'bold 24px monospace';
                     canvasCtx.fillStyle = '#FF6B6B';
                     canvasCtx.textAlign = 'center';
-                    canvasCtx.fillText('💥 SCATTER!', leftX, leftY - 60);
+                    canvasCtx.fillText('💥 SCATTER!', rightScatterX, rightScatterY - 60);
                 }
                 
                 if (!rightHandDetected && isPinching) {
@@ -1016,14 +1018,14 @@
                         hint = ` 💥 SCATTERING... ${percent}%`;
                     } else if (isRotating) {
                         hint = ' ✓ ROTATING!';
-                    } else if (leftHandDetected && leftHandFingerCount === 0) {
-                        hint = ' ✊ FIST - DISMISS!';
+                    } else if (rightHandDetected && rightHandFingerCount === 0) {
+                        hint = ' ✊ RIGHT FIST - DISMISS!';
                     } else if (leftHandDetected && leftHandFingerCount === 3) {
                         hint = ' ✓ SWITCHING!';
                     } else if (isPinching) {
                         hint = ' ✓ SCALING!';
                     } else {
-                        hint = ' | FIST to dismiss';
+                        hint = ' | Right FIST to dismiss';
                     }
                     statusElement.textContent = `Model: ${currentModelIndex + 1}/${modelPaths.length} | ${statusText}${hint}`;
                 }

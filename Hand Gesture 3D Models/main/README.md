@@ -15,7 +15,7 @@ The main application with complete particle formation and scatter effects.
 | Gesture | Hand | Action |
 |---------|------|--------|
 | ✊ Fist (no model) | Left | Summon model with particle formation |
-| ✊ Fist (model active) | Left | Dismiss with scatter effect |
+| ✊ Fist (model active) | Right | Dismiss with scatter effect |
 | ✋ 3 Fingers | Left | Cycle to next model |
 | 🤏 Pinch (thumb + index) | Right | Scale model |
 | 🖐️🖐️ Open Palms (5+5) | Both | Rotate model by moving hands |
