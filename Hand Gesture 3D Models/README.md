@@ -8,8 +8,8 @@ An interactive web application that uses hand gesture recognition to control and
 
 This project creates an immersive augmented reality experience where users can:
 
-- Summon 3D models using hand gestures
-- Watch models form from magical particle effects
+- Summon 3D models using a fist gesture with particle formation effect
+- Dismiss models with the same fist gesture, triggering explosive scatter animation
 - Rotate, scale, and switch between multiple models
 - All running locally in a web browser with just a webcam
 
@@ -43,20 +43,28 @@ Three.js GLTFLoader - Loading .glb 3D model files
 - Smooth ease-in-out cubic easing with swirling motion
 - 2-second formation animation with progress indicator
 
-### 2. **Hand Gesture Controls**
+### 2. **Particle Scatter Effect**
+
+- Left fist gesture triggers explosive scatter animation when model is active
+- Particles burst outward from model vertices with spin
+- 1.5-second animation with fade-out and size growth
+- Returns to idle particle swirl state
+
+### 3. **Hand Gesture Controls**
 
 - Real-time finger counting algorithm
 - Support for both left and right hand tracking
 - Visual feedback with color-coded indicators
+- Same gesture (fist) used contextually: summon when no model, dismiss when model active
 
-### 3. **3D Model Manipulation**
+### 4. **3D Model Manipulation**
 
 - Load and display GLB/GLTF 3D models
 - Smooth scale interpolation with pinch gestures
 - Dual-hand rotation control
 - Auto-rotation when idle
 
-### 4. **Mirrored Webcam Feed**
+### 5. **Mirrored Webcam Feed**
 
 - Full-screen webcam display (mirrored for natural interaction)
 - Transparent Three.js overlay for 3D content
@@ -67,6 +75,7 @@ Three.js GLTFLoader - Loading .glb 3D model files
 | Gesture                                    | Hand(s) | Action                                | Visual Indicator |
 | ------------------------------------------ | ------- | ------------------------------------- | ---------------- |
 | ✊**Fist** (0 fingers)               | Left    | Show first model with particle effect | Green            |
+| ✊**Fist** (0 fingers, model active) | Left    | Dismiss model with scatter effect     | Orange/Red       |
 | ✋**3 Fingers**                      | Left    | Cycle to next model                   | Gold             |
 | 🤏**Pinch** (thumb + index)          | Right   | Scale model (spread = bigger)         | Gold line        |
 | 🖐️🖐️**Open Palms** (5+5 fingers) | Both    | Rotate model by moving hands          | Purple           |
@@ -105,20 +114,35 @@ if (Math.abs(thumbTip.x - thumbMCP.x) > Math.abs(thumbIP.x - thumbMCP.x)) count+
 
 ### Particle System
 
-The particle formation effect works in three phases:
+The particle effects work in distinct phases:
 
+#### Formation Effect (Fist Gesture)
 1. **Idle State**: Particles swirl in a sphere (radius 3-6 units)
 2. **Formation**: Particles move toward model vertices using lerp interpolation
 3. **Completion**: Particles fade, real model appears
 
 ```javascript
-// Easing function for smooth animation
+// Formation easing (ease-in-out cubic)
 const eased = progress < 0.5
     ? 4 * progress * progress * progress
     : 1 - Math.pow(-2 * progress + 2, 3) / 2;
 
 // Interpolate with swirl effect
 position = start + (target - start) * eased + swirlOffset;
+```
+
+#### Scatter Effect (Fist Gesture when model active)
+1. **Trigger**: Left hand makes a fist while model is displayed
+2. **Explosion**: Particles burst outward from model position
+3. **Fade Out**: Particles grow larger and fade to invisible
+4. **Reset**: Returns to idle swirl state
+
+```javascript
+// Scatter easing (ease-out cubic - fast start, slow end)
+const eased = 1 - Math.pow(1 - progress, 3);
+
+// Outward movement with spin
+position = start + velocity * eased + spinOffset;
 ```
 
 ### Scale Smoothing
@@ -184,6 +208,7 @@ Key parameters can be adjusted in the code:
 // Particle System
 const particleCount = 2000;           // Number of particles
 const formationDuration = 2.0;        // Seconds for formation animation
+const scatterDuration = 1.5;          // Seconds for scatter animation
 
 // Smoothing
 const scaleSmoothingFactor = 0.15;    // Scale lerp speed (0-1)
@@ -201,14 +226,16 @@ const maxScale = 5.0;
 
 ## 🎨 Visual Indicators
 
-| Color               | Meaning                            |
-| ------------------- | ---------------------------------- |
-| 🔴 Red (#FF6B6B)    | Left hand detected (default)       |
-| 🔵 Teal (#4ECDC4)   | Right hand detected                |
-| 🟢 Green (#00FF00)  | Fist detected, ready to summon     |
-| 🟡 Gold (#FFD700)   | Active gesture (switching/scaling) |
-| 🟣 Purple (#9B59B6) | Rotation mode active               |
-| 🔵 Cyan (#00FFFF)   | Particle formation in progress     |
+| Color                 | Meaning                            |
+| --------------------- | ---------------------------------- |
+| 🔴 Red (#FF6B6B)      | Left hand detected (default)       |
+| 🔵 Teal (#4ECDC4)     | Right hand detected                |
+| 🟢 Green (#00FF00)    | Fist detected, ready to summon     |
+| 🟠 Orange (#FF9500)   | Fist detected, ready to dismiss    |
+| 🟡 Gold (#FFD700)     | Active gesture (switching/scaling) |
+| 🟣 Purple (#9B59B6)   | Rotation mode active               |
+| 🔵 Cyan (#00FFFF)     | Particle formation in progress     |
+| 🔴 Red (#FF6B6B)      | Scatter effect in progress         |
 
 ## 🔄 Application Flow
 
@@ -249,15 +276,31 @@ const maxScale = 5.0;
 ┌─────────────────────────────────────────────────────────────┐
 │                    ACTIVE STATE                              │
 │  - Model visible with auto-rotation                         │
-│  - Ready for gestures: scale, rotate, cycle                 │
+│  - Ready for gestures: scale, rotate, cycle, dismiss        │
 └─────────────────────────────────────────────────────────────┘
                               │
-              ┌───────────────┼───────────────┐
-              │               │               │
-     Left 3 Fingers    Right Pinch    Both Hands Open
-              │               │               │
-              ▼               ▼               ▼
-        Cycle Model     Scale Model    Rotate Model
+       ┌──────────────┬───────┼───────┬──────────────┐
+       │              │       │       │              │
+  Left 3 Fingers Right Pinch  │  Both Open    Left Fist
+       │              │       │       │              │
+       ▼              ▼       │       ▼              ▼
+  Cycle Model   Scale Model   │  Rotate Model   Scatter
+                              │                      │
+                              │                      ▼
+                              │   ┌─────────────────────────────┐
+                              │   │     PARTICLE SCATTER        │
+                              │   │  - Particles burst outward  │
+                              │   │  - Fade out (1.5 seconds)   │
+                              │   │  - Status: "SCATTERING..."  │
+                              │   └─────────────────────────────┘
+                              │                      │
+                              └──────────────────────┘
+                                         │
+                                         ▼
+                              ┌─────────────────────┐
+                              │   WAITING STATE     │
+                              │   (loop back)       │
+                              └─────────────────────┘
 ```
 
 ## 🐛 Troubleshooting

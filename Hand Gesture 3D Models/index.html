@@ -137,6 +137,13 @@
         const formationDuration = 2.0; // seconds
         let formationStartTime = 0;
         
+        // Scatter effect (reverse of formation - fist to dismiss)
+        let isScattering = false;
+        let scatterProgress = 0;
+        const scatterDuration = 1.5; // seconds (faster than formation)
+        let scatterStartTime = 0;
+        let particleScatterVelocities = null;
+        
         // Create particle system
         function createParticleSystem() {
             const geometry = new THREE.BufferGeometry();
@@ -335,9 +342,148 @@
             particleSystem.material.opacity = 1;
         }
         
+        // Start the particle scatter effect (reverse of formation)
+        function startParticleScatter() {
+            if (!activeModel || !particleSystem || isScattering) return;
+            
+            // Extract vertices from current model
+            const vertices = extractModelVertices(activeModel);
+            
+            if (vertices.length === 0) {
+                // Fallback: just hide the model directly
+                hideModel();
+                return;
+            }
+            
+            // Initialize particle positions from model vertices
+            particleScatterVelocities = new Float32Array(particleCount * 3);
+            
+            for (let i = 0; i < particleCount; i++) {
+                const i3 = i * 3;
+                const vertexIndex = Math.floor(Math.random() * vertices.length);
+                const vertex = vertices[vertexIndex];
+                
+                // Start positions from model
+                particleStartPositions[i3] = vertex.x;
+                particleStartPositions[i3 + 1] = vertex.y;
+                particleStartPositions[i3 + 2] = vertex.z;
+                
+                // Current positions start at model
+                particlePositions[i3] = vertex.x;
+                particlePositions[i3 + 1] = vertex.y;
+                particlePositions[i3 + 2] = vertex.z;
+                
+                // Random outward velocities for explosion effect
+                const angle = Math.random() * Math.PI * 2;
+                const upAngle = Math.acos(2 * Math.random() - 1);
+                const speed = 2 + Math.random() * 4;
+                
+                particleScatterVelocities[i3] = speed * Math.sin(upAngle) * Math.cos(angle);
+                particleScatterVelocities[i3 + 1] = speed * Math.sin(upAngle) * Math.sin(angle);
+                particleScatterVelocities[i3 + 2] = speed * Math.cos(upAngle);
+            }
+            
+            // Hide the model, show particles
+            activeModel.visible = false;
+            particleSystem.visible = true;
+            particleSystem.material.size = 0.04; // Start smaller
+            particleSystem.material.opacity = 1;
+            particleSystem.geometry.attributes.position.needsUpdate = true;
+            
+            // Start scatter animation
+            isScattering = true;
+            scatterProgress = 0;
+            scatterStartTime = performance.now() / 1000;
+        }
+        
+        // Update particle scatter animation
+        function updateParticleScatter() {
+            if (!isScattering || !particleSystem) return;
+            
+            const currentTime = performance.now() / 1000;
+            const elapsed = currentTime - scatterStartTime;
+            scatterProgress = Math.min(elapsed / scatterDuration, 1);
+            
+            // Easing function (ease-out cubic for fast start, slow end)
+            const eased = 1 - Math.pow(1 - scatterProgress, 3);
+            
+            // Update particle positions
+            for (let i = 0; i < particleCount; i++) {
+                const i3 = i * 3;
+                
+                // Add some spin during scatter
+                const spinAmount = eased * 3;
+                const spinAngle = elapsed * 4 + i * 0.02;
+                const spinX = Math.sin(spinAngle) * spinAmount * 0.1;
+                const spinY = Math.cos(spinAngle * 0.7) * spinAmount * 0.1;
+                
+                // Move outward from start position based on velocity
+                particlePositions[i3] = particleStartPositions[i3] + 
+                    particleScatterVelocities[i3] * eased + spinX;
+                particlePositions[i3 + 1] = particleStartPositions[i3 + 1] + 
+                    particleScatterVelocities[i3 + 1] * eased + spinY;
+                particlePositions[i3 + 2] = particleStartPositions[i3 + 2] + 
+                    particleScatterVelocities[i3 + 2] * eased;
+            }
+            
+            particleSystem.geometry.attributes.position.needsUpdate = true;
+            
+            // Update particle size and opacity - grow then fade
+            const sizeFactor = 1 + eased * 2; // Particles grow as they scatter
+            const opacityFactor = 1 - eased; // Fade out
+            particleSystem.material.size = 0.04 * sizeFactor;
+            particleSystem.material.opacity = opacityFactor;
+            
+            // Check if scatter is complete
+            if (scatterProgress >= 1) {
+                completeScatter();
+            }
+        }
+        
+        // Complete the scatter and reset to waiting state
+        function completeScatter() {
+            isScattering = false;
+            particleSystem.visible = true; // Keep visible for idle animation
+            
+            // Hide all models and reset state
+            hideModel();
+            
+            // Reset particles to dispersed state for idle animation
+            for (let i = 0; i < particleCount; i++) {
+                const i3 = i * 3;
+                const radius = 3 + Math.random() * 3;
+                const theta = Math.random() * Math.PI * 2;
+                const phi = Math.acos(2 * Math.random() - 1);
+                
+                particlePositions[i3] = radius * Math.sin(phi) * Math.cos(theta);
+                particlePositions[i3 + 1] = radius * Math.sin(phi) * Math.sin(theta);
+                particlePositions[i3 + 2] = radius * Math.cos(phi);
+            }
+            particleSystem.geometry.attributes.position.needsUpdate = true;
+            particleSystem.material.size = 0.08;
+            particleSystem.material.opacity = 1;
+        }
+        
+        // Hide model and reset to waiting state
+        function hideModel() {
+            loadedModels.forEach(model => {
+                if (model) model.visible = false;
+            });
+            activeModel = null;
+            modelActivated = false;
+            currentModelIndex = 0;
+            
+            // Reset scale and rotation variables
+            isPinching = false;
+            initialPinchDistance = null;
+            pinchDistanceHistory.length = 0;
+            isRotating = false;
+            autoRotate = true;
+        }
+        
         // Update idle particle animation (swirling when not forming)
         function updateIdleParticles() {
-            if (isFormingModel || !particleSystem || !particleSystem.visible) return;
+            if (isFormingModel || isScattering || !particleSystem || !particleSystem.visible) return;
             if (modelActivated) return; // Don't animate idle particles when model is shown
             
             const time = performance.now() / 1000;
@@ -625,7 +771,7 @@
             }
             
             // If not activated yet, check for fist (0 fingers) to show first model
-            if (!modelActivated && !isFormingModel && leftHandDetected && leftHandFingerCount === 0 && loadedModels.length > 0) {
+            if (!modelActivated && !isFormingModel && !isScattering && leftHandDetected && leftHandFingerCount === 0 && loadedModels.length > 0) {
                 // Small delay to confirm it's a fist, not just transitioning
                 if (canSwitch) {
                     canSwitch = false;
@@ -636,6 +782,16 @@
                     }, 800);
                 }
             }
+            // If activated, check for fist (0 fingers) to scatter/dismiss model
+            else if (modelActivated && !isScattering && !isFormingModel && leftHandDetected && leftHandFingerCount === 0) {
+                if (canSwitch) {
+                    canSwitch = false;
+                    startParticleScatter();
+                    setTimeout(() => {
+                        canSwitch = true;
+                    }, 1000);
+                }
+            }
             // If activated, check for 3 fingers to cycle
             else if (modelActivated && leftHandDetected && leftHandFingerCount === 3) {
                 cycleModel();
@@ -643,6 +799,7 @@
             
             // Update particle effects
             updateParticleFormation();
+            updateParticleScatter();
             updateIdleParticles();
             
             renderer.render(scene, camera);
@@ -748,10 +905,12 @@
                         const y = wrist.y * canvasElement.height + 40;
                         
                         canvasCtx.font = 'bold 32px monospace';
-                        // Color based on state: fist=green when waiting, 3=gold when switching, 5=purple for rotation
+                        // Color based on state: fist=green when waiting, red when scattering, 3=gold when switching, 5=purple for rotation
                         let displayColor = '#FF6B6B';
                         if (!modelActivated && leftHandFingerCount === 0) {
                             displayColor = isFormingModel ? '#00FFFF' : '#00FF00'; // Cyan when forming, green for fist
+                        } else if (modelActivated && leftHandFingerCount === 0) {
+                            displayColor = isScattering ? '#FF6B6B' : '#FF9500'; // Red when scattering, orange for fist
                         } else if (modelActivated && leftHandFingerCount === 3) {
                             displayColor = '#FFD700'; // Gold for switching
                         } else if (modelActivated && leftHandFingerCount === 5 && isRotating) {
@@ -766,7 +925,13 @@
                             if (isFormingModel) {
                                 gestureText = `FORMING ⚡ ${Math.round(formationProgress * 100)}%`;
                             } else {
-                                gestureText = 'FIST ✊';
+                                gestureText = 'FIST ✊ (summon)';
+                            }
+                        } else if (modelActivated && leftHandFingerCount === 0) {
+                            if (isScattering) {
+                                gestureText = `SCATTER 💥 ${Math.round(scatterProgress * 100)}%`;
+                            } else {
+                                gestureText = 'FIST ✊ (dismiss)';
                             }
                         } else if (modelActivated && leftHandFingerCount === 3) {
                             gestureText = '3 FINGERS ✋';
@@ -916,6 +1081,38 @@
                     canvasCtx.stroke();
                 }
                 
+                // Draw scatter visual indicator (when scattering with fist)
+                if (isScattering && leftHandDetected) {
+                    const leftX = leftHandPos.x * canvasElement.width;
+                    const leftY = leftHandPos.y * canvasElement.height;
+                    
+                    // Draw explosion burst effect around fist
+                    const numLines = 12;
+                    const lineLength = 40 + scatterProgress * 60;
+                    canvasCtx.strokeStyle = '#FF6B6B';
+                    canvasCtx.lineWidth = 3;
+                    
+                    for (let j = 0; j < numLines; j++) {
+                        const angle = (j / numLines) * Math.PI * 2;
+                        canvasCtx.beginPath();
+                        canvasCtx.moveTo(leftX + Math.cos(angle) * 30, leftY + Math.sin(angle) * 30);
+                        canvasCtx.lineTo(leftX + Math.cos(angle) * lineLength, leftY + Math.sin(angle) * lineLength);
+                        canvasCtx.stroke();
+                    }
+                    
+                    // Draw center circle
+                    canvasCtx.beginPath();
+                    canvasCtx.arc(leftX, leftY, 25, 0, 2 * Math.PI);
+                    canvasCtx.fillStyle = 'rgba(255, 107, 107, 0.7)';
+                    canvasCtx.fill();
+                    
+                    // Draw "SCATTER!" text
+                    canvasCtx.font = 'bold 24px monospace';
+                    canvasCtx.fillStyle = '#FF6B6B';
+                    canvasCtx.textAlign = 'center';
+                    canvasCtx.fillText('💥 SCATTER!', leftX, leftY - 60);
+                }
+                
                 // Reset pinch state if right hand not detected
                 if (!rightHandDetected && isPinching) {
                     isPinching = false;
@@ -930,7 +1127,10 @@
                 
                 let hint;
                 if (!modelActivated) {
-                    if (isFormingModel) {
+                    if (isScattering) {
+                        const percent = Math.round(scatterProgress * 100);
+                        hint = ` 💥 SCATTERING... ${percent}%`;
+                    } else if (isFormingModel) {
                         const percent = Math.round(formationProgress * 100);
                         hint = ` ⚡ FORMING MODEL... ${percent}%`;
                     } else if (leftHandDetected && leftHandFingerCount === 0) {
@@ -940,14 +1140,19 @@
                     }
                     statusElement.textContent = `Waiting... | ${statusText}${hint}`;
                 } else {
-                    if (isRotating) {
+                    if (isScattering) {
+                        const percent = Math.round(scatterProgress * 100);
+                        hint = ` 💥 SCATTERING... ${percent}%`;
+                    } else if (isRotating) {
                         hint = ' ✓ ROTATING!';
+                    } else if (leftHandDetected && leftHandFingerCount === 0) {
+                        hint = ' ✊ FIST - DISMISS!';
                     } else if (leftHandDetected && leftHandFingerCount === 3) {
                         hint = ' ✓ SWITCHING!';
                     } else if (isPinching) {
                         hint = ' ✓ SCALING!';
                     } else {
-                        hint = '';
+                        hint = ' | FIST to dismiss';
                     }
                     statusElement.textContent = `Model: ${currentModelIndex + 1}/${modelPaths.length} | ${statusText}${hint}`;
                 }
