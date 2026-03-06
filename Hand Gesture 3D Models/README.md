@@ -1,342 +1,314 @@
 # Hand Gesture 3D Model Controller
 
-An interactive web application that uses hand gesture recognition to control and manipulate 3D models in real-time. Built with MediaPipe hand tracking and Three.js for WebGL rendering.
+An interactive web application suite that uses **hand gesture recognition** to control **3D GLB models** in real-time. Built with MediaPipe Hand Tracking, Three.js, and vanilla JavaScript.
 
-![Demo](https://img.shields.io/badge/Demo-Interactive-brightgreen) ![Tech](https://img.shields.io/badge/Tech-WebGL%20%7C%20MediaPipe-blue) ![License](https://img.shields.io/badge/License-MIT-yellow)
+![Status](https://img.shields.io/badge/Status-Working-brightgreen) ![Three.js](https://img.shields.io/badge/Three.js-0.160.0-blue) ![MediaPipe](https://img.shields.io/badge/MediaPipe-Hands-orange) ![Vanilla JS](https://img.shields.io/badge/JavaScript-ES6+-yellow)
 
-## 🎯 Overview
+---
 
-This project creates an immersive augmented reality experience where users can:
+## 🎯 Project Overview
 
-- Summon 3D models using a fist gesture with particle formation effect
-- Dismiss models with the same fist gesture, triggering explosive scatter animation
-- Rotate, scale, and switch between multiple models
-- All running locally in a web browser with just a webcam
+This project demonstrates real-time hand tracking combined with 3D visualization. Use natural hand gestures to summon, manipulate, and dismiss 3D models displayed as solid objects or particle effects.
+
+---
+
+## 📁 Project Structure
+
+```
+Hand Gesture 3D Models/
+├── README.md                     ← You are here (Project Overview)
+│
+├── main/                         ← Full-featured application
+│   ├── index.html
+│   └── README.md
+│
+├── point-cloud/                  ← Static point cloud visualization
+│   ├── index.html
+│   └── README.md
+│
+├── animated-particles/           ← Animated particles with shaders
+│   ├── index.html
+│   └── README.md
+│
+├── toggle-mode/                  ← Switch between solid & particles
+│   ├── index.html
+│   └── README.md
+│
+└── image_models/                 ← 3D model assets
+    ├── turbine__turbofan_engine__jet_engine.glb
+    ├── ksp_primitive_orbital_station_complex.glb
+    └── iss.glb
+```
+
+---
+
+## 🎮 Available Modes
+
+| Mode | Description | Key Features | Link |
+|------|-------------|--------------|------|
+| **Main** | Full-featured experience | Particle formation/scatter effects, scaling, rotation | [main/](main/) |
+| **Point Cloud** | Static particle visualization | Models rendered as colored point clouds | [point-cloud/](point-cloud/) |
+| **Animated Particles** | Dynamic particle effects | GLSL shaders with breathing, wave, sparkle | [animated-particles/](animated-particles/) |
+| **Toggle Mode** | Solid ↔ Particle switch | Compare both rendering styles | [toggle-mode/](toggle-mode/) |
+
+---
+
+## 🖐️ Gesture Controls Summary
+
+### Universal Gestures (All Modes)
+
+| Gesture | Hand | Action |
+|---------|------|--------|
+| ✊ **Fist** (0 fingers) | Left | Show/Hide model |
+| ✋ **3 Fingers** | Left | Cycle through models |
+
+### Main Mode Only
+
+| Gesture | Hand | Action |
+|---------|------|--------|
+| ✊ **Fist** (no model) | Left | Summon with particle formation |
+| ✊ **Fist** (model active) | Left | Dismiss with particle scatter |
+| 🤏 **Pinch** | Right | Scale model size |
+| 🙌 **Both Open** (5+5) | Both | Free rotation control |
+
+### Toggle Mode Only
+
+| Gesture | Hand | Action |
+|---------|------|--------|
+| 🖐️ **4 Fingers** | Left | Toggle Solid ↔ Particle view |
+
+---
 
 ## 🛠️ Technologies Used
 
-### Core Technologies
+| Technology | Version | Purpose |
+|------------|---------|---------|
+| [MediaPipe Hands](https://mediapipe.dev/) | 0.4.1675469240 | Real-time hand landmark detection |
+| [Three.js](https://threejs.org/) | 0.160.0 | 3D rendering & GLB model loading |
+| [GLTFLoader](https://threejs.org/docs/#examples/en/loaders/GLTFLoader) | Three.js addon | Loading .glb/.gltf files |
+| WebGL / WebGL2 | - | Hardware-accelerated graphics |
+| GLSL Shaders | - | Custom particle animations |
+| Canvas API | - | 2D hand landmark overlay |
+| Vanilla JavaScript | ES6+ | Application logic |
 
-| Technology                   | Purpose                                        | Version        |
-| ---------------------------- | ---------------------------------------------- | -------------- |
-| **MediaPipe Hands**    | Real-time hand tracking and landmark detection | 0.4.1675469240 |
-| **Three.js**           | 3D rendering and WebGL abstraction             | 0.160.0        |
-| **Vanilla JavaScript** | Core application logic                         | ES6+ Modules   |
-| **HTML5 Canvas**       | Hand landmark visualization overlay            | -              |
-| **WebRTC**             | Webcam video capture                           | -              |
+---
 
-### Libraries & CDN Resources
+## 🎨 3D Models Included
 
+| # | Model | Description |
+|---|-------|-------------|
+| 1 | `turbine__turbofan_engine__jet_engine.glb` | Jet engine turbine |
+| 2 | `ksp_primitive_orbital_station_complex.glb` | Orbital space station |
+| 3 | `iss.glb` | International Space Station |
+
+### Adding Custom Models
+
+1. Place your `.glb` file in `image_models/`
+2. Add the path to the `modelPaths` array:
+
+```javascript
+const modelPaths = [
+    '../image_models/turbine__turbofan_engine__jet_engine.glb',
+    '../image_models/ksp_primitive_orbital_station_complex.glb',
+    '../image_models/iss.glb',
+    '../image_models/your_model.glb'  // Add here
+];
 ```
-MediaPipe Hands - Hand landmark detection (21 points per hand)
-MediaPipe Camera Utils - Webcam stream management
-MediaPipe Drawing Utils - Landmark visualization helpers
-Three.js Core - 3D scene, camera, renderer
-Three.js GLTFLoader - Loading .glb 3D model files
-```
 
-## ✨ Features
+---
 
-### 1. **Particle Formation Effect**
+## 🚀 Getting Started
 
-- 2000 glowing particles animate from a dispersed sphere into the model's shape
-- Smooth ease-in-out cubic easing with swirling motion
-- 2-second formation animation with progress indicator
+### Prerequisites
 
-### 2. **Particle Scatter Effect**
+- Modern web browser (Chrome 90+, Firefox 88+, Edge 90+)
+- Webcam
+- Local HTTP server (required for ES6 modules)
 
-- Left fist gesture triggers explosive scatter animation when model is active
-- Particles burst outward from model vertices with spin
-- 1.5-second animation with fade-out and size growth
-- Returns to idle particle swirl state
+### Quick Start
 
-### 3. **Hand Gesture Controls**
+1. **Navigate to project folder:**
+   ```bash
+   cd "Hand Gesture 3D Models"
+   ```
 
-- Real-time finger counting algorithm
-- Support for both left and right hand tracking
-- Visual feedback with color-coded indicators
-- Same gesture (fist) used contextually: summon when no model, dismiss when model active
+2. **Start a local server:**
+   ```bash
+   # Python 3
+   python3 -m http.server 8000
+   
+   # Node.js
+   npx http-server -p 8000
+   
+   # PHP
+   php -S localhost:8000
+   ```
 
-### 4. **3D Model Manipulation**
+3. **Open in browser:**
 
-- Load and display GLB/GLTF 3D models
-- Smooth scale interpolation with pinch gestures
-- Dual-hand rotation control
-- Auto-rotation when idle
+   | Mode | URL |
+   |------|-----|
+   | Main | http://localhost:8000/main/ |
+   | Point Cloud | http://localhost:8000/point-cloud/ |
+   | Animated Particles | http://localhost:8000/animated-particles/ |
+   | Toggle Mode | http://localhost:8000/toggle-mode/ |
 
-### 5. **Mirrored Webcam Feed**
+4. **Allow camera access** when prompted
 
-- Full-screen webcam display (mirrored for natural interaction)
-- Transparent Three.js overlay for 3D content
-- Hand landmark skeleton visualization
+---
 
-## 🎮 Gesture Controls
-
-| Gesture                                    | Hand(s) | Action                                | Visual Indicator |
-| ------------------------------------------ | ------- | ------------------------------------- | ---------------- |
-| ✊**Fist** (0 fingers)               | Left    | Show first model with particle effect | Green            |
-| ✊**Fist** (0 fingers, model active) | Left    | Dismiss model with scatter effect     | Orange/Red       |
-| ✋**3 Fingers**                      | Left    | Cycle to next model                   | Gold             |
-| 🤏**Pinch** (thumb + index)          | Right   | Scale model (spread = bigger)         | Gold line        |
-| 🖐️🖐️**Open Palms** (5+5 fingers) | Both    | Rotate model by moving hands          | Purple           |
-
-## 🔧 Technical Implementation
+## 🔧 Technical Highlights
 
 ### Hand Landmark Detection
 
-MediaPipe Hands detects 21 landmarks per hand:
+MediaPipe detects 21 landmarks per hand:
 
 ```
-        8   12  16  20
+        8   12  16  20      ← Fingertips
         |   |   |   |
     4   7   11  15  19
     |   |   |   |   |
     3   6   10  14  18
     |   |   |   |   |
     2   5   9   13  17
-     \  |   |   |   /
-      \ |   |   |  /
-        +---+---+
-            |
-            0 (wrist)
+     \   \  |  /   /
+      \   \ | /   /
+       ---- 0 ----          ← Wrist
 ```
 
-**Finger Counting Algorithm:**
+### Finger Counting Logic
 
 ```javascript
-// A finger is "extended" if its tip is above its PIP joint
-// Index: tip (8) above PIP (6)
-if (landmarks[8].y < landmarks[6].y) count++;
-
-// Thumb uses horizontal distance from palm instead
-if (Math.abs(thumbTip.x - thumbMCP.x) > Math.abs(thumbIP.x - thumbMCP.x)) count++;
+function countFingers(landmarks) {
+    let count = 0;
+    
+    // Thumb: check horizontal extension
+    if (Math.abs(landmarks[4].x - landmarks[2].x) > 
+        Math.abs(landmarks[3].x - landmarks[2].x) * 1.2) count++;
+    
+    // Index: tip above PIP joint
+    if (landmarks[8].y < landmarks[6].y) count++;
+    
+    // Middle, Ring, Pinky: same logic
+    if (landmarks[12].y < landmarks[10].y) count++;
+    if (landmarks[16].y < landmarks[14].y) count++;
+    if (landmarks[20].y < landmarks[18].y) count++;
+    
+    return count;
+}
 ```
 
-### Particle System
-
-The particle effects work in distinct phases:
-
-#### Formation Effect (Fist Gesture)
-1. **Idle State**: Particles swirl in a sphere (radius 3-6 units)
-2. **Formation**: Particles move toward model vertices using lerp interpolation
-3. **Completion**: Particles fade, real model appears
+### Point Cloud Generation
 
 ```javascript
-// Formation easing (ease-in-out cubic)
-const eased = progress < 0.5
-    ? 4 * progress * progress * progress
-    : 1 - Math.pow(-2 * progress + 2, 3) / 2;
-
-// Interpolate with swirl effect
-position = start + (target - start) * eased + swirlOffset;
+function extractVertices(model) {
+    const positions = [];
+    model.traverse((child) => {
+        if (child.isMesh && child.geometry) {
+            const posAttr = child.geometry.attributes.position;
+            for (let i = 0; i < posAttr.count; i++) {
+                positions.push(
+                    posAttr.getX(i),
+                    posAttr.getY(i),
+                    posAttr.getZ(i)
+                );
+            }
+        }
+    });
+    return positions;
+}
 ```
 
-#### Scatter Effect (Fist Gesture when model active)
-1. **Trigger**: Left hand makes a fist while model is displayed
-2. **Explosion**: Particles burst outward from model position
-3. **Fade Out**: Particles grow larger and fade to invisible
-4. **Reset**: Returns to idle swirl state
+### GLSL Particle Animation (Animated Particles Mode)
 
-```javascript
-// Scatter easing (ease-out cubic - fast start, slow end)
-const eased = 1 - Math.pow(1 - progress, 3);
+```glsl
+// Vertex Shader
+uniform float time;
+attribute float offset;
 
-// Outward movement with spin
-position = start + velocity * eased + spinOffset;
+void main() {
+    float breathe = sin(time * 2.0 + offset) * 0.03;
+    float wave = sin(time * 1.5 + position.y * 3.0) * 0.02;
+    
+    vec3 pos = position + normalize(position) * breathe;
+    pos.x += wave;
+    
+    gl_Position = projectionMatrix * modelViewMatrix * vec4(pos, 1.0);
+}
 ```
 
-### Scale Smoothing
-
-To prevent jittery scaling, two smoothing techniques are applied:
-
-1. **Moving Average**: Last 5 pinch distances averaged
-2. **Lerp Interpolation**: `currentScale += (targetScale - currentScale) * 0.15`
-
-### Rotation Control
-
-Both hands open (5 fingers each) activates rotation mode:
-
-- Horizontal hand movement → Y-axis rotation
-- Vertical hand movement → X-axis rotation
-- Average of both hands' positions for stability
-
-## 📁 Project Structure
-
-```
-Hand Gesture 3D Models/
-├── index.html          # Main application (single file)
-├── README.md           # This documentation
-└── image_models/       # 3D model assets
-    ├── turbine__turbofan_engine__jet_engine.glb
-    ├── ksp_primitive_orbital_station_complex.glb
-    └── iss.glb
-```
-
-## 🚀 Getting Started
-
-### Prerequisites
-
-- Modern web browser (Chrome, Firefox, Edge recommended)
-- Webcam
-- Local web server (required for loading 3D models)
-
-### Running Locally
-
-1. **Clone or download** the project
-2. **Start a local server** (choose one):
-
-   ```bash
-   # Python 3
-   cd "Hand Gesture 3D Models"
-   python3 -m http.server 8000
-
-   # Node.js (if http-server installed)
-   npx http-server -p 8000
-
-   # PHP
-   php -S localhost:8000
-   ```
-3. **Open in browser**: Navigate to `http://localhost:8000`
-4. **Allow camera access** when prompted
-5. **Make a fist** with your left hand to summon the first model!
-
-## ⚙️ Configuration
-
-Key parameters can be adjusted in the code:
-
-```javascript
-// Particle System
-const particleCount = 2000;           // Number of particles
-const formationDuration = 2.0;        // Seconds for formation animation
-const scatterDuration = 1.5;          // Seconds for scatter animation
-
-// Smoothing
-const scaleSmoothingFactor = 0.15;    // Scale lerp speed (0-1)
-const rotationSmoothingFactor = 0.12; // Rotation lerp speed (0-1)
-const pinchHistorySize = 5;           // Moving average window
-
-// Gesture Thresholds
-const pinchStartThreshold = 0.08;     // Pinch detection distance
-const pinchEndThreshold = 0.25;       // Pinch release distance
-
-// Model Scale Limits
-const minScale = 0.3;
-const maxScale = 5.0;
-```
+---
 
 ## 🎨 Visual Indicators
 
-| Color                 | Meaning                            |
-| --------------------- | ---------------------------------- |
-| 🔴 Red (#FF6B6B)      | Left hand detected (default)       |
-| 🔵 Teal (#4ECDC4)     | Right hand detected                |
-| 🟢 Green (#00FF00)    | Fist detected, ready to summon     |
-| 🟠 Orange (#FF9500)   | Fist detected, ready to dismiss    |
-| 🟡 Gold (#FFD700)     | Active gesture (switching/scaling) |
-| 🟣 Purple (#9B59B6)   | Rotation mode active               |
-| 🔵 Cyan (#00FFFF)     | Particle formation in progress     |
-| 🔴 Red (#FF6B6B)      | Scatter effect in progress         |
+| Color | Meaning |
+|-------|---------|
+| 🔴 Red `#FF6B6B` | Left hand landmarks |
+| 🔵 Teal `#4ECDC4` | Right hand landmarks |
+| 🟢 Green `#00FF00` | Fist detected (summon) |
+| 🟡 Gold `#FFD700` | 3 fingers / pinching |
+| 🟣 Purple `#9B59B6` | Rotation mode |
+| 🔵 Cyan `#00FFFF` | Particle formation |
+| 🟠 Orange `#FF9500` | Fist detected (dismiss) |
+| 💜 Magenta `#FF00FF` | 4 fingers (toggle) |
 
-## 🔄 Application Flow
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│                    APPLICATION START                         │
-└─────────────────────────────────────────────────────────────┘
-                              │
-                              ▼
-┌─────────────────────────────────────────────────────────────┐
-│  1. Initialize Three.js scene, camera, renderer             │
-│  2. Load all 3D models (hidden)                             │
-│  3. Create particle system (visible, swirling)              │
-│  4. Initialize MediaPipe hand tracking                      │
-│  5. Start webcam feed                                       │
-└─────────────────────────────────────────────────────────────┘
-                              │
-                              ▼
-┌─────────────────────────────────────────────────────────────┐
-│                    WAITING STATE                             │
-│  - Particles swirl in idle animation                        │
-│  - Status: "Make a FIST to start"                           │
-└─────────────────────────────────────────────────────────────┘
-                              │
-                    Left Fist Detected
-                              │
-                              ▼
-┌─────────────────────────────────────────────────────────────┐
-│                 PARTICLE FORMATION                           │
-│  - Extract vertices from target model                       │
-│  - Animate particles toward vertices (2 seconds)            │
-│  - Status: "FORMING... XX%"                                 │
-└─────────────────────────────────────────────────────────────┘
-                              │
-                    Formation Complete
-                              │
-                              ▼
-┌─────────────────────────────────────────────────────────────┐
-│                    ACTIVE STATE                              │
-│  - Model visible with auto-rotation                         │
-│  - Ready for gestures: scale, rotate, cycle, dismiss        │
-└─────────────────────────────────────────────────────────────┘
-                              │
-       ┌──────────────┬───────┼───────┬──────────────┐
-       │              │       │       │              │
-  Left 3 Fingers Right Pinch  │  Both Open    Left Fist
-       │              │       │       │              │
-       ▼              ▼       │       ▼              ▼
-  Cycle Model   Scale Model   │  Rotate Model   Scatter
-                              │                      │
-                              │                      ▼
-                              │   ┌─────────────────────────────┐
-                              │   │     PARTICLE SCATTER        │
-                              │   │  - Particles burst outward  │
-                              │   │  - Fade out (1.5 seconds)   │
-                              │   │  - Status: "SCATTERING..."  │
-                              │   └─────────────────────────────┘
-                              │                      │
-                              └──────────────────────┘
-                                         │
-                                         ▼
-                              ┌─────────────────────┐
-                              │   WAITING STATE     │
-                              │   (loop back)       │
-                              └─────────────────────┘
-```
+---
 
 ## 🐛 Troubleshooting
 
-| Issue                   | Solution                                             |
-| ----------------------- | ---------------------------------------------------- |
-| Camera not working      | Check browser permissions, ensure HTTPS or localhost |
-| Models not loading      | Must run from local server, not file:// protocol     |
-| Hand not detected       | Ensure good lighting, keep hands in frame            |
-| Laggy performance       | Close other tabs, reduce `particleCount`           |
-| Gestures not recognized | Keep fingers clearly separated, palm facing camera   |
+| Issue | Solution |
+|-------|----------|
+| Camera not starting | Check browser permissions, use localhost or HTTPS |
+| Hand not detected | Improve lighting, keep hand 1-3 feet from camera |
+| Models not loading | Check console for errors, verify file paths |
+| Gestures not working | Ensure fingers are clearly visible, slow movements |
+| Laggy performance | Reduce particle count, lower `modelComplexity` to 0 |
+| Shader errors | Update browser, check WebGL2 support |
 
-## 📝 Browser Compatibility
+---
 
-| Browser         | Support                                |
-| --------------- | -------------------------------------- |
-| Chrome 90+      | ✅ Full support                        |
-| Firefox 85+     | ✅ Full support                        |
-| Edge 90+        | ✅ Full support                        |
-| Safari 15+      | ⚠️ May need camera permission tweaks |
-| Mobile browsers | ⚠️ Performance varies                |
+## 🌐 Browser Compatibility
 
-## 🔮 Future Enhancements
+| Browser | Status |
+|---------|--------|
+| Chrome 90+ | ✅ Full support |
+| Firefox 88+ | ✅ Full support |
+| Edge 90+ | ✅ Full support |
+| Safari 15+ | ⚠️ May need permission reset |
+| Mobile | ⚠️ Limited performance |
 
-- [ ] Voice commands integration
-- [ ] Model upload functionality
-- [ ] Gesture recording and playback
-- [ ] Multi-user collaboration
-- [ ] AR mode with WebXR
-- [ ] Custom particle effects per model
+---
+
+## 📊 Mode Comparison
+
+| Feature | Main | Point Cloud | Animated | Toggle |
+|---------|:----:|:-----------:|:--------:|:------:|
+| Solid 3D Model | ✅ | ❌ | ❌ | ✅ |
+| Static Particles | ❌ | ✅ | ❌ | ✅ |
+| Animated Particles | ❌ | ❌ | ✅ | ❌ |
+| Formation Effect | ✅ | ❌ | ❌ | ❌ |
+| Scatter Effect | ✅ | ❌ | ❌ | ❌ |
+| Pinch Scaling | ✅ | ❌ | ❌ | ❌ |
+| Rotation Control | ✅ | ❌ | ❌ | ❌ |
+| Mode Toggle | ❌ | ❌ | ❌ | ✅ |
+| GLSL Shaders | ❌ | ❌ | ✅ | ❌ |
+
+---
+
+## 📖 Documentation Links
+
+- [Main Mode Documentation](main/README.md)
+- [Point Cloud Documentation](point-cloud/README.md)
+- [Animated Particles Documentation](animated-particles/README.md)
+- [Toggle Mode Documentation](toggle-mode/README.md)
+
+---
 
 ## 🙏 Acknowledgments
 
 - [MediaPipe](https://mediapipe.dev/) by Google for hand tracking
 - [Three.js](https://threejs.org/) for 3D rendering
-- 3D models from [Sketchfab](https://sketchfab.com/) (check individual model licenses)
+- [Sketchfab](https://sketchfab.com/) for 3D model resources
 
 ---
 

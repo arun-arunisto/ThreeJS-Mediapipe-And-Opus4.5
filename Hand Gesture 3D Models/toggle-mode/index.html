@@ -1,0 +1,477 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Toggle Mode - Hand Gesture 3D</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            overflow: hidden;
+            background: #000;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        #container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+        }
+
+        #webcam {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            transform: scaleX(-1);
+        }
+
+        #canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            transform: scaleX(-1);
+        }
+
+        #three-canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+        }
+
+        #status {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.7);
+            color: #fff;
+            padding: 15px 30px;
+            border-radius: 25px;
+            font-size: 16px;
+            z-index: 100;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        #mode-label {
+            position: absolute;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: linear-gradient(135deg, #ff6b6b, #ffd700);
+            color: #000;
+            padding: 10px 25px;
+            border-radius: 20px;
+            font-size: 14px;
+            font-weight: bold;
+            z-index: 100;
+            transition: all 0.3s ease;
+        }
+
+        #mode-label.particle {
+            background: linear-gradient(135deg, #00ffff, #ff00ff);
+        }
+    </style>
+</head>
+<body>
+    <div id="container">
+        <video id="webcam" autoplay playsinline></video>
+        <canvas id="canvas"></canvas>
+        <canvas id="three-canvas"></canvas>
+        <div id="mode-label">🔄 TOGGLE MODE - SOLID</div>
+        <div id="status">Loading...</div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.4.1675469240/hands.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils@0.3.1675466862/camera_utils.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils@0.3.1675466124/drawing_utils.min.js"></script>
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+            }
+        }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+
+        // ============ THREE.JS SETUP ============
+        const threeCanvas = document.getElementById('three-canvas');
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.z = 5;
+
+        const renderer = new THREE.WebGLRenderer({ canvas: threeCanvas, alpha: true, antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(window.devicePixelRatio);
+        renderer.setClearColor(0x000000, 0);
+
+        // Lighting
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+        scene.add(ambientLight);
+        const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
+        directionalLight.position.set(5, 5, 5);
+        scene.add(directionalLight);
+        const directionalLight2 = new THREE.DirectionalLight(0x4488ff, 0.5);
+        directionalLight2.position.set(-5, -5, 5);
+        scene.add(directionalLight2);
+
+        // ============ MODEL LOADING ============
+        const modelPaths = [
+            '../image_models/turbine__turbofan_engine__jet_engine.glb',
+            '../image_models/ksp_primitive_orbital_station_complex.glb',
+            '../image_models/iss.glb'
+        ];
+
+        const loader = new GLTFLoader();
+        const models = [];
+        const particleSystems = [];
+        let currentModelIndex = 0;
+        let modelsLoaded = 0;
+        let modelActive = false;
+        let displayMode = 'solid'; // 'solid' or 'particle'
+
+        const modeLabel = document.getElementById('mode-label');
+
+        modelPaths.forEach((path, index) => {
+            loader.load(path, (gltf) => {
+                const model = gltf.scene;
+                
+                const box = new THREE.Box3().setFromObject(model);
+                const center = box.getCenter(new THREE.Vector3());
+                const size = box.getSize(new THREE.Vector3());
+                const maxDim = Math.max(size.x, size.y, size.z);
+                const scale = 2 / maxDim;
+                
+                model.scale.setScalar(scale);
+                model.position.sub(center.multiplyScalar(scale));
+                model.updateMatrixWorld(true);
+                model.visible = false;
+                
+                models[index] = model;
+                scene.add(model);
+                
+                // Create particle version
+                const particleSystem = createParticleSystem(model);
+                particleSystem.visible = false;
+                particleSystems[index] = particleSystem;
+                scene.add(particleSystem);
+                
+                modelsLoaded++;
+                if (modelsLoaded === modelPaths.length) {
+                    document.getElementById('status').textContent = '✊ Fist to show | ✋ 3 fingers to cycle | 🖐️ 4 fingers to toggle mode';
+                }
+            },
+            (progress) => {
+                const percent = (progress.loaded / progress.total * 100).toFixed(0);
+                document.getElementById('status').textContent = `Loading models... ${percent}%`;
+            },
+            (error) => {
+                console.error('Error loading model:', error);
+            });
+        });
+
+        function createParticleSystem(model) {
+            const positions = [];
+            const colors = [];
+            
+            model.traverse((child) => {
+                if (child.isMesh && child.geometry) {
+                    const posAttr = child.geometry.attributes.position;
+                    const matrix = child.matrixWorld;
+                    
+                    for (let i = 0; i < posAttr.count; i++) {
+                        const vertex = new THREE.Vector3(
+                            posAttr.getX(i),
+                            posAttr.getY(i),
+                            posAttr.getZ(i)
+                        ).applyMatrix4(matrix);
+                        
+                        positions.push(vertex.x, vertex.y, vertex.z);
+                        
+                        // Gradient colors
+                        const t = (vertex.y + 1.5) / 3;
+                        const hue = 0.5 + t * 0.3; // Cyan to purple
+                        const color = new THREE.Color().setHSL(hue, 0.9, 0.6);
+                        colors.push(color.r, color.g, color.b);
+                    }
+                }
+            });
+            
+            const geometry = new THREE.BufferGeometry();
+            geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+            geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+            
+            // Create circular particle texture
+            const canvas = document.createElement('canvas');
+            canvas.width = 32;
+            canvas.height = 32;
+            const ctx = canvas.getContext('2d');
+            const gradient = ctx.createRadialGradient(16, 16, 0, 16, 16, 16);
+            gradient.addColorStop(0, 'rgba(255, 255, 255, 1)');
+            gradient.addColorStop(0.3, 'rgba(255, 255, 255, 0.8)');
+            gradient.addColorStop(0.7, 'rgba(255, 255, 255, 0.3)');
+            gradient.addColorStop(1, 'rgba(255, 255, 255, 0)');
+            ctx.fillStyle = gradient;
+            ctx.fillRect(0, 0, 32, 32);
+            const texture = new THREE.CanvasTexture(canvas);
+            
+            const material = new THREE.PointsMaterial({
+                size: 0.025,
+                map: texture,
+                vertexColors: true,
+                transparent: true,
+                opacity: 0.85,
+                blending: THREE.AdditiveBlending,
+                sizeAttenuation: true,
+                depthWrite: false
+            });
+            
+            return new THREE.Points(geometry, material);
+        }
+
+        function showCurrentModel() {
+            if (displayMode === 'solid') {
+                models[currentModelIndex].visible = true;
+                particleSystems[currentModelIndex].visible = false;
+            } else {
+                models[currentModelIndex].visible = false;
+                particleSystems[currentModelIndex].visible = true;
+            }
+        }
+
+        function hideCurrentModel() {
+            models[currentModelIndex].visible = false;
+            particleSystems[currentModelIndex].visible = false;
+        }
+
+        function toggleDisplayMode() {
+            hideCurrentModel();
+            displayMode = displayMode === 'solid' ? 'particle' : 'solid';
+            showCurrentModel();
+            
+            modeLabel.textContent = `🔄 TOGGLE MODE - ${displayMode.toUpperCase()}`;
+            modeLabel.classList.toggle('particle', displayMode === 'particle');
+        }
+
+        // ============ HAND TRACKING SETUP ============
+        const video = document.getElementById('webcam');
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        const status = document.getElementById('status');
+
+        let gestureTimeout = false;
+
+        // Hand connections for drawing
+        const HAND_CONNECTIONS = [
+            [0, 1], [1, 2], [2, 3], [3, 4],
+            [0, 5], [5, 6], [6, 7], [7, 8],
+            [0, 9], [9, 10], [10, 11], [11, 12],
+            [0, 13], [13, 14], [14, 15], [15, 16],
+            [0, 17], [17, 18], [18, 19], [19, 20],
+            [5, 9], [9, 13], [13, 17]
+        ];
+
+        function countFingers(landmarks) {
+            let count = 0;
+            
+            const thumbTip = landmarks[4];
+            const thumbIP = landmarks[3];
+            const thumbMCP = landmarks[2];
+            if (Math.abs(thumbTip.x - thumbMCP.x) > Math.abs(thumbIP.x - thumbMCP.x) * 1.2) {
+                count++;
+            }
+            
+            if (landmarks[8].y < landmarks[6].y) count++;
+            if (landmarks[12].y < landmarks[10].y) count++;
+            if (landmarks[16].y < landmarks[14].y) count++;
+            if (landmarks[20].y < landmarks[18].y) count++;
+            
+            return count;
+        }
+
+        function drawLandmarks(landmarks, color) {
+            ctx.fillStyle = color;
+            for (const landmark of landmarks) {
+                const x = landmark.x * canvas.width;
+                const y = landmark.y * canvas.height;
+                ctx.beginPath();
+                ctx.arc(x, y, 5, 0, 2 * Math.PI);
+                ctx.fill();
+            }
+        }
+
+        function drawConnections(landmarks, color) {
+            ctx.strokeStyle = color;
+            ctx.lineWidth = 3;
+            for (const [start, end] of HAND_CONNECTIONS) {
+                ctx.beginPath();
+                ctx.moveTo(landmarks[start].x * canvas.width, landmarks[start].y * canvas.height);
+                ctx.lineTo(landmarks[end].x * canvas.width, landmarks[end].y * canvas.height);
+                ctx.stroke();
+            }
+        }
+
+        function onResults(results) {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            let leftHand = null;
+
+            if (results.multiHandLandmarks && results.multiHandedness) {
+                for (let i = 0; i < results.multiHandLandmarks.length; i++) {
+                    const landmarks = results.multiHandLandmarks[i];
+                    const handedness = results.multiHandedness[i].label;
+                    const isLeft = handedness === 'Right';
+
+                    const color = isLeft ? '#FF6B6B' : '#4ECDC4';
+                    drawConnections(landmarks, color);
+                    drawLandmarks(landmarks, color);
+
+                    if (isLeft) {
+                        leftHand = landmarks;
+                    }
+                }
+            }
+
+            if (leftHand && !gestureTimeout) {
+                const fingerCount = countFingers(leftHand);
+                
+                const wrist = leftHand[0];
+                ctx.font = 'bold 48px Arial';
+                
+                let indicatorColor = '#FFFFFF';
+                if (fingerCount === 0) indicatorColor = '#00FF00';
+                else if (fingerCount === 3) indicatorColor = '#FFD700';
+                else if (fingerCount === 4) indicatorColor = '#FF00FF';
+                
+                ctx.fillStyle = indicatorColor;
+                ctx.textAlign = 'center';
+                ctx.fillText(fingerCount.toString(), wrist.x * canvas.width, wrist.y * canvas.height + 60);
+
+                if (fingerCount === 0) {
+                    // Fist - toggle model visibility
+                    gestureTimeout = true;
+                    setTimeout(() => gestureTimeout = false, 800);
+                    
+                    if (!modelActive) {
+                        showCurrentModel();
+                        modelActive = true;
+                        status.textContent = `Model ${currentModelIndex + 1}/${models.length} [${displayMode.toUpperCase()}] | ✋ 3→cycle | 🖐️ 4→toggle | ✊ Fist→hide`;
+                    } else {
+                        hideCurrentModel();
+                        modelActive = false;
+                        status.textContent = '✊ Fist to show | ✋ 3 fingers to cycle | 🖐️ 4 fingers to toggle mode';
+                    }
+                } else if (fingerCount === 3 && modelActive) {
+                    // 3 fingers - cycle models
+                    gestureTimeout = true;
+                    setTimeout(() => gestureTimeout = false, 800);
+                    
+                    hideCurrentModel();
+                    currentModelIndex = (currentModelIndex + 1) % models.length;
+                    showCurrentModel();
+                    status.textContent = `Model ${currentModelIndex + 1}/${models.length} [${displayMode.toUpperCase()}] | ✋ 3→cycle | 🖐️ 4→toggle | ✊ Fist→hide`;
+                } else if (fingerCount === 4 && modelActive) {
+                    // 4 fingers - toggle display mode
+                    gestureTimeout = true;
+                    setTimeout(() => gestureTimeout = false, 800);
+                    
+                    toggleDisplayMode();
+                    status.textContent = `Model ${currentModelIndex + 1}/${models.length} [${displayMode.toUpperCase()}] | ✋ 3→cycle | 🖐️ 4→toggle | ✊ Fist→hide`;
+                }
+            }
+
+            if (!results.multiHandLandmarks || results.multiHandLandmarks.length === 0) {
+                if (modelActive) {
+                    status.textContent = `Model ${currentModelIndex + 1}/${models.length} [${displayMode.toUpperCase()}] | Show hand for gestures`;
+                }
+            }
+        }
+
+        // ============ MEDIAPIPE SETUP ============
+        const hands = new Hands({
+            locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.4.1675469240/${file}`
+        });
+
+        hands.setOptions({
+            maxNumHands: 2,
+            modelComplexity: 1,
+            minDetectionConfidence: 0.7,
+            minTrackingConfidence: 0.5
+        });
+
+        hands.onResults(onResults);
+
+        // ============ CAMERA SETUP ============
+        async function startCamera() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({
+                    video: { width: 1280, height: 720, facingMode: 'user' }
+                });
+                video.srcObject = stream;
+                
+                video.onloadedmetadata = () => {
+                    video.play();
+                    
+                    async function processFrame() {
+                        if (video.readyState >= 2) {
+                            await hands.send({ image: video });
+                        }
+                        requestAnimationFrame(processFrame);
+                    }
+                    processFrame();
+                };
+            } catch (error) {
+                console.error('Camera error:', error);
+                status.textContent = 'Camera access denied';
+            }
+        }
+
+        hands.initialize().then(() => {
+            startCamera();
+        });
+
+        // ============ ANIMATION LOOP ============
+        function animate() {
+            requestAnimationFrame(animate);
+            
+            // Rotate active model/particles
+            if (modelActive) {
+                if (displayMode === 'solid' && models[currentModelIndex]) {
+                    models[currentModelIndex].rotation.y += 0.005;
+                } else if (displayMode === 'particle' && particleSystems[currentModelIndex]) {
+                    particleSystems[currentModelIndex].rotation.y += 0.005;
+                }
+            }
+            
+            renderer.render(scene, camera);
+        }
+        animate();
+
+        // ============ WINDOW RESIZE ============
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+    </script>
+</body>
+</html>
