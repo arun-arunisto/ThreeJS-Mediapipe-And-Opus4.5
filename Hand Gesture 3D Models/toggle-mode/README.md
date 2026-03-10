@@ -17,7 +17,8 @@ Switch between solid 3D model and particle visualization with full gesture contr
 
 | Gesture | Hand | Action |
 |---------|------|--------|
-| ✊ Fist (0 fingers) | Left | Show/Hide model |
+| ✊ Fist (0 fingers) | Left | Show model |
+| ✊ Fist (0 fingers) | Right | Hide model |
 | ✋ 3 Fingers | Left | Cycle to next model |
 | 🖐️ 4 Fingers | Left | Toggle Solid ↔ Particles |
 | 🤏 Pinch (thumb + index) | Right | Scale model size |

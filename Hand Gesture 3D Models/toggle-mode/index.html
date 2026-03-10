@@ -404,9 +404,9 @@
                         let displayColor = '#FF6B6B';
                         let gestureText = `${leftHandFingerCount} fingers`;
                         
-                        if (leftHandFingerCount === 0) {
+                        if (leftHandFingerCount === 0 && !modelActive) {
                             displayColor = '#00FF00';
-                            gestureText = modelActive ? 'FIST ✊ (hide)' : 'FIST ✊ (show)';
+                            gestureText = 'FIST ✊ (show)';
                         } else if (leftHandFingerCount === 3 && modelActive) {
                             displayColor = '#FFD700';
                             gestureText = '3 FINGERS ✋ (cycle)';
@@ -500,7 +500,10 @@
                             ctx.fillStyle = isPinching ? '#FFD700' : '#4ECDC4';
                             ctx.textAlign = 'center';
                             
-                            if (modelActive) {
+                            if (rightHandFingerCount === 0 && modelActive) {
+                                ctx.fillStyle = '#FF4444';
+                                ctx.fillText('FIST ✊ (hide)', rx, ry);
+                            } else if (modelActive) {
                                 const activeObj = getActiveObject();
                                 const scalePercent = activeObj ? Math.round(activeObj.scale.x * 50) : 50;
                                 ctx.fillText(isPinching ? `Scale: ${scalePercent}%` : 'Pinch to scale', rx, ry);
@@ -543,52 +546,56 @@
             }
 
             // Handle gestures
-            if (leftHandDetected && !gestureTimeout) {
-                // Fist - show/hide
-                if (leftHandFingerCount === 0) {
-                    gestureTimeout = true;
-                    setTimeout(() => gestureTimeout = false, 800);
-                    
-                    if (!modelActive) {
-                        showCurrentModel();
-                        modelActive = true;
-                        const activeObj = getActiveObject();
-                        currentScale = activeObj.scale.x;
-                        targetScale = currentScale;
-                        baseScale = currentScale;
-                    } else {
-                        hideCurrentModel();
-                        modelActive = false;
-                        isPinching = false;
-                        initialPinchDistance = null;
-                        isRotating = false;
-                        autoRotate = true;
-                    }
-                }
-                // 3 fingers - cycle models
-                else if (leftHandFingerCount === 3 && modelActive) {
-                    gestureTimeout = true;
-                    setTimeout(() => gestureTimeout = false, 800);
-                    
-                    hideCurrentModel();
-                    currentModelIndex = (currentModelIndex + 1) % models.length;
-                    showCurrentModel();
-                    
-                    const activeObj = getActiveObject();
-                    currentScale = activeObj.scale.x;
-                    targetScale = currentScale;
-                    baseScale = currentScale;
-                    currentRotationX = activeObj.rotation.x;
-                    currentRotationY = activeObj.rotation.y;
-                    targetRotationX = currentRotationX;
-                    targetRotationY = currentRotationY;
-                }
-                // 4 fingers - toggle display mode
-                else if (leftHandFingerCount === 4 && modelActive) {
-                    gestureTimeout = true;
-                    setTimeout(() => gestureTimeout = false, 800);
-                    toggleDisplayMode();
-                }
+            // Left fist - show model
+            if (leftHandDetected && !gestureTimeout && leftHandFingerCount === 0 && !modelActive) {
+                gestureTimeout = true;
+                setTimeout(() => gestureTimeout = false, 800);
+                
+                showCurrentModel();
+                modelActive = true;
+                const activeObj = getActiveObject();
+                currentScale = activeObj.scale.x;
+                targetScale = currentScale;
+                baseScale = currentScale;
+            }
+            
+            // Right fist - hide model
+            if (rightHandDetected && !gestureTimeout && rightHandFingerCount === 0 && modelActive) {
+                gestureTimeout = true;
+                setTimeout(() => gestureTimeout = false, 800);
+                
+                hideCurrentModel();
+                modelActive = false;
+                isPinching = false;
+                initialPinchDistance = null;
+                isRotating = false;
+                autoRotate = true;
+            }
+            
+            // 3 fingers - cycle models
+            if (leftHandDetected && !gestureTimeout && leftHandFingerCount === 3 && modelActive) {
+                gestureTimeout = true;
+                setTimeout(() => gestureTimeout = false, 800);
+                
+                hideCurrentModel();
+                currentModelIndex = (currentModelIndex + 1) % models.length;
+                showCurrentModel();
+                
+                const activeObj = getActiveObject();
+                currentScale = activeObj.scale.x;
+                targetScale = currentScale;
+                baseScale = currentScale;
+                currentRotationX = activeObj.rotation.x;
+                currentRotationY = activeObj.rotation.y;
+                targetRotationX = currentRotationX;
+                targetRotationY = currentRotationY;
+            }
+            
+            // 4 fingers - toggle display mode
+            if (leftHandDetected && !gestureTimeout && leftHandFingerCount === 4 && modelActive) {
+                gestureTimeout = true;
+                setTimeout(() => gestureTimeout = false, 800);
+                toggleDisplayMode();
             }
 
             // Reset pinching if right hand lost
@@ -611,7 +618,7 @@
                 } else if (isPinching) {
                     hint = '📐 SCALING';
                 } else {
-                    hint = '✊ hide | ✋3 cycle | 🖐️4 toggle | 🤏 scale | 🙌 rotate';
+                    hint = '✊R hide | ✋3 cycle | 🖐️4 toggle | 🤏 scale | 🙌 rotate';
                 }
                 status.textContent = `Model ${currentModelIndex + 1}/${models.length} [${displayMode.toUpperCase()}] | ${hint}`;
             } else {

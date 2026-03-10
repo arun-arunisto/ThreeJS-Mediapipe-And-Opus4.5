@@ -15,7 +15,8 @@ Static point cloud visualization of 3D models with full gesture controls.
 
 | Gesture | Hand | Action |
 |---------|------|--------|
-| ✊ Fist (0 fingers) | Left | Show/Hide point cloud |
+| ✊ Fist (0 fingers) | Left | Show point cloud |
+| ✊ Fist (0 fingers) | Right | Hide point cloud |
 | ✋ 3 Fingers | Left | Cycle to next model |
 | 🤏 Pinch (thumb + index) | Right | Scale model size |
 | 🖐️🖐️ Both Open (5+5 fingers) | Both | Free rotation control |

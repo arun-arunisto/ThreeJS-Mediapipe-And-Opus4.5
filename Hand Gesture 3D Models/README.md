@@ -59,7 +59,8 @@ Hand Gesture 3D Models/
 
 | Gesture | Hand | Action |
 |---------|------|--------|
-| ✊ **Fist** (0 fingers) | Left | Show/Hide model |
+| ✊ **Fist** (0 fingers) | Left | Show model |
+| ✊ **Fist** (0 fingers) | Right | Hide model |
 | ✋ **3 Fingers** | Left | Cycle through models |
 | 🤏 **Pinch** (thumb + index) | Right | Scale model size |
 | 🙌 **Both Open** (5+5 fingers) | Both | Free rotation control |

@@ -16,7 +16,8 @@ Dynamic particle visualization with custom GLSL shaders and full gesture control
 
 | Gesture | Hand | Action |
 |---------|------|--------|
-| ✊ Fist (0 fingers) | Left | Show/Hide animated particles |
+| ✊ Fist (0 fingers) | Left | Show animated particles |
+| ✊ Fist (0 fingers) | Right | Hide animated particles |
 | ✋ 3 Fingers | Left | Cycle to next model |
 | 🤏 Pinch (thumb + index) | Right | Scale model size |
 | 🖐️🖐️ Both Open (5+5 fingers) | Both | Free rotation control |
