@@ -1,6 +1,6 @@
 # Animated Particles Mode
 
-Dynamic particle visualization with custom GLSL shaders.
+Dynamic particle visualization with custom GLSL shaders and full gesture controls.
 
 ## Features
 
@@ -8,7 +8,9 @@ Dynamic particle visualization with custom GLSL shaders.
 - **Wave Motion**: Sinusoidal displacement for flowing movement
 - **Sparkle Animation**: Random alpha flickering for shimmer
 - **Rainbow Gradient**: Colors based on vertex angle
-- **Auto-Rotation**: Continuous rotation when displayed
+- **Pinch Scaling**: Scale model with right hand pinch gesture
+- **Rotation Control**: Both hands open to rotate freely
+- **Auto-Rotation**: Continuous rotation when not manually controlling
 
 ## Gesture Controls
 
@@ -16,6 +18,8 @@ Dynamic particle visualization with custom GLSL shaders.
 |---------|------|--------|
 | ✊ Fist (0 fingers) | Left | Show/Hide animated particles |
 | ✋ 3 Fingers | Left | Cycle to next model |
+| 🤏 Pinch (thumb + index) | Right | Scale model size |
+| 🖐️🖐️ Both Open (5+5 fingers) | Both | Free rotation control |
 
 ## Running
 
@@ -61,6 +65,11 @@ float glow = pow(1.0 - dist * 2.0, 1.5);
 - Breathing amount: 0.03
 - Wave speed: 1.5
 - Wave amount: 0.02
+
+### Scaling & Rotation
+- **Pinch Scaling**: 5-frame moving average smoothing + lerp (0.15)
+- **Rotation Control**: Both hands track average delta movement
+- **Auto-Rotate Speed**: 0.003 radians/frame when idle
 
 ### 3D Models
 Located in `../image_models/`:

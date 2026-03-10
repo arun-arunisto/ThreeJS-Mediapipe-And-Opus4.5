@@ -61,6 +61,8 @@ Hand Gesture 3D Models/
 |---------|------|--------|
 | ✊ **Fist** (0 fingers) | Left | Show/Hide model |
 | ✋ **3 Fingers** | Left | Cycle through models |
+| 🤏 **Pinch** (thumb + index) | Right | Scale model size |
+| 🙌 **Both Open** (5+5 fingers) | Both | Free rotation control |
 
 ### Main Mode Only
 
@@ -68,8 +70,6 @@ Hand Gesture 3D Models/
 |---------|------|--------|
 | ✊ **Fist** (no model) | Left | Summon with particle formation |
 | ✊ **Fist** (model active) | Right | Dismiss with particle scatter |
-| 🤏 **Pinch** | Right | Scale model size |
-| 🙌 **Both Open** (5+5) | Both | Free rotation control |
 
 ### Toggle Mode Only
 
@@ -288,8 +288,8 @@ void main() {
 | Animated Particles | ❌ | ❌ | ✅ | ❌ |
 | Formation Effect | ✅ | ❌ | ❌ | ❌ |
 | Scatter Effect | ✅ | ❌ | ❌ | ❌ |
-| Pinch Scaling | ✅ | ❌ | ❌ | ❌ |
-| Rotation Control | ✅ | ❌ | ❌ | ❌ |
+| Pinch Scaling | ✅ | ✅ | ✅ | ✅ |
+| Rotation Control | ✅ | ✅ | ✅ | ✅ |
 | Mode Toggle | ❌ | ❌ | ❌ | ✅ |
 | GLSL Shaders | ❌ | ❌ | ✅ | ❌ |
 

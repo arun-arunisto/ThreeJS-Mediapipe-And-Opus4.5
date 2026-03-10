@@ -145,7 +145,7 @@
         let currentModelIndex = 0;
         let modelsLoaded = 0;
         let modelActive = false;
-        let displayMode = 'solid'; // 'solid' or 'particle'
+        let displayMode = 'solid';
 
         const modeLabel = document.getElementById('mode-label');
 
@@ -167,7 +167,6 @@
                 models[index] = model;
                 scene.add(model);
                 
-                // Create particle version
                 const particleSystem = createParticleSystem(model);
                 particleSystem.visible = false;
                 particleSystems[index] = particleSystem;
@@ -175,7 +174,7 @@
                 
                 modelsLoaded++;
                 if (modelsLoaded === modelPaths.length) {
-                    document.getElementById('status').textContent = '✊ Fist to show | ✋ 3 fingers to cycle | 🖐️ 4 fingers to toggle mode';
+                    document.getElementById('status').textContent = '✊ Left FIST to show | 🤏 Pinch=scale | 🙌 Open=rotate | 🖐️ 4=toggle';
                 }
             },
             (progress) => {
@@ -205,9 +204,8 @@
                         
                         positions.push(vertex.x, vertex.y, vertex.z);
                         
-                        // Gradient colors
                         const t = (vertex.y + 1.5) / 3;
-                        const hue = 0.5 + t * 0.3; // Cyan to purple
+                        const hue = 0.5 + t * 0.3;
                         const color = new THREE.Color().setHSL(hue, 0.9, 0.6);
                         colors.push(color.r, color.g, color.b);
                     }
@@ -218,7 +216,6 @@
             geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
             geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
             
-            // Create circular particle texture
             const canvas = document.createElement('canvas');
             canvas.width = 32;
             canvas.height = 32;
@@ -246,6 +243,10 @@
             return new THREE.Points(geometry, material);
         }
 
+        function getActiveObject() {
+            return displayMode === 'solid' ? models[currentModelIndex] : particleSystems[currentModelIndex];
+        }
+
         function showCurrentModel() {
             if (displayMode === 'solid') {
                 models[currentModelIndex].visible = true;
@@ -266,6 +267,12 @@
             displayMode = displayMode === 'solid' ? 'particle' : 'solid';
             showCurrentModel();
             
+            // Sync transforms between modes
+            const activeObj = getActiveObject();
+            activeObj.scale.setScalar(currentScale);
+            activeObj.rotation.x = currentRotationX;
+            activeObj.rotation.y = currentRotationY;
+            
             modeLabel.textContent = `🔄 TOGGLE MODE - ${displayMode.toUpperCase()}`;
             modeLabel.classList.toggle('particle', displayMode === 'particle');
         }
@@ -277,8 +284,40 @@
         const status = document.getElementById('status');
 
         let gestureTimeout = false;
+        
+        // Hand state tracking
+        let leftHandDetected = false;
+        let rightHandDetected = false;
+        let leftHandFingerCount = 0;
+        let rightHandFingerCount = 0;
+        let leftHandPos = { x: 0, y: 0 };
+        let rightHandPos = { x: 0, y: 0 };
+        
+        // Scaling state
+        let isPinching = false;
+        let pinchDistance = 0;
+        let initialPinchDistance = null;
+        let baseScale = 1;
+        let targetScale = 1;
+        let currentScale = 1;
+        const scaleSmoothingFactor = 0.15;
+        const pinchDistanceHistory = [];
+        const pinchHistorySize = 5;
+        
+        // Rotation state
+        let isRotating = false;
+        let initialLeftHandPos = null;
+        let initialRightHandPos = null;
+        let baseRotationX = 0;
+        let baseRotationY = 0;
+        let targetRotationX = 0;
+        let targetRotationY = 0;
+        let currentRotationX = 0;
+        let currentRotationY = 0;
+        const rotationSmoothingFactor = 0.12;
+        const rotationSensitivity = 4;
+        let autoRotate = true;
 
-        // Hand connections for drawing
         const HAND_CONNECTIONS = [
             [0, 1], [1, 2], [2, 3], [3, 4],
             [0, 5], [5, 6], [6, 7], [7, 8],
@@ -333,76 +372,250 @@
             canvas.height = window.innerHeight;
             ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-            let leftHand = null;
+            leftHandDetected = false;
+            rightHandDetected = false;
+            leftHandFingerCount = 0;
+            rightHandFingerCount = 0;
 
             if (results.multiHandLandmarks && results.multiHandedness) {
                 for (let i = 0; i < results.multiHandLandmarks.length; i++) {
                     const landmarks = results.multiHandLandmarks[i];
                     const handedness = results.multiHandedness[i].label;
-                    const isLeft = handedness === 'Right';
+                    const isLeftHand = handedness === 'Right'; // Mirrored
 
-                    const color = isLeft ? '#FF6B6B' : '#4ECDC4';
+                    const color = isLeftHand ? '#FF6B6B' : '#4ECDC4';
                     drawConnections(landmarks, color);
                     drawLandmarks(landmarks, color);
 
-                    if (isLeft) {
-                        leftHand = landmarks;
+                    const wrist = landmarks[0];
+                    const middleBase = landmarks[9];
+
+                    if (isLeftHand) {
+                        leftHandDetected = true;
+                        leftHandFingerCount = countFingers(landmarks);
+                        leftHandPos.x = (wrist.x + middleBase.x) / 2;
+                        leftHandPos.y = (wrist.y + middleBase.y) / 2;
+                        
+                        // Draw left hand gesture indicator
+                        const x = wrist.x * canvas.width;
+                        const y = wrist.y * canvas.height + 50;
+                        
+                        ctx.font = 'bold 28px Arial';
+                        let displayColor = '#FF6B6B';
+                        let gestureText = `${leftHandFingerCount} fingers`;
+                        
+                        if (leftHandFingerCount === 0) {
+                            displayColor = '#00FF00';
+                            gestureText = modelActive ? 'FIST ✊ (hide)' : 'FIST ✊ (show)';
+                        } else if (leftHandFingerCount === 3 && modelActive) {
+                            displayColor = '#FFD700';
+                            gestureText = '3 FINGERS ✋ (cycle)';
+                        } else if (leftHandFingerCount === 4 && modelActive) {
+                            displayColor = '#FF00FF';
+                            gestureText = '4 FINGERS 🖐️ (toggle)';
+                        } else if (leftHandFingerCount === 5 && isRotating) {
+                            displayColor = '#9B59B6';
+                            gestureText = 'ROTATING 🔄';
+                        }
+                        
+                        ctx.fillStyle = displayColor;
+                        ctx.textAlign = 'center';
+                        ctx.fillText(gestureText, x, y);
+                    } else {
+                        rightHandDetected = true;
+                        rightHandFingerCount = countFingers(landmarks);
+                        rightHandPos.x = (wrist.x + middleBase.x) / 2;
+                        rightHandPos.y = (wrist.y + middleBase.y) / 2;
+                        
+                        // Pinch detection
+                        const thumbTip = landmarks[4];
+                        const indexTip = landmarks[8];
+                        const dx = thumbTip.x - indexTip.x;
+                        const dy = thumbTip.y - indexTip.y;
+                        pinchDistance = Math.sqrt(dx * dx + dy * dy);
+                        
+                        const pinchStartThreshold = 0.08;
+                        const pinchEndThreshold = 0.25;
+                        
+                        if (!isPinching && pinchDistance < pinchStartThreshold && modelActive) {
+                            isPinching = true;
+                            initialPinchDistance = pinchDistance;
+                            pinchDistanceHistory.length = 0;
+                            const activeObj = getActiveObject();
+                            if (activeObj) baseScale = activeObj.scale.x;
+                        }
+                        
+                        if (isPinching && pinchDistance > pinchEndThreshold) {
+                            isPinching = false;
+                            initialPinchDistance = null;
+                            pinchDistanceHistory.length = 0;
+                            const activeObj = getActiveObject();
+                            if (activeObj) {
+                                baseScale = activeObj.scale.x;
+                                targetScale = baseScale;
+                            }
+                        }
+                        
+                        // Draw pinch indicator
+                        const inRotationMode = rightHandFingerCount === 5 && leftHandDetected && leftHandFingerCount === 5;
+                        
+                        if (!inRotationMode) {
+                            const thumbX = thumbTip.x * canvas.width;
+                            const thumbY = thumbTip.y * canvas.height;
+                            const indexX = indexTip.x * canvas.width;
+                            const indexY = indexTip.y * canvas.height;
+                            
+                            ctx.beginPath();
+                            ctx.moveTo(thumbX, thumbY);
+                            ctx.lineTo(indexX, indexY);
+                            ctx.strokeStyle = isPinching ? '#FFD700' : '#4ECDC4';
+                            ctx.lineWidth = isPinching ? 4 : 2;
+                            ctx.stroke();
+                            
+                            ctx.beginPath();
+                            ctx.arc(thumbX, thumbY, isPinching ? 12 : 8, 0, 2 * Math.PI);
+                            ctx.fillStyle = isPinching ? '#FFD700' : '#4ECDC4';
+                            ctx.fill();
+                            
+                            ctx.beginPath();
+                            ctx.arc(indexX, indexY, isPinching ? 12 : 8, 0, 2 * Math.PI);
+                            ctx.fill();
+                        }
+                        
+                        // Draw right hand label
+                        const rx = wrist.x * canvas.width;
+                        const ry = wrist.y * canvas.height + 50;
+                        
+                        ctx.font = 'bold 24px Arial';
+                        
+                        if (inRotationMode && isRotating) {
+                            ctx.fillStyle = '#9B59B6';
+                            ctx.textAlign = 'center';
+                            ctx.fillText('ROTATING 🔄', rx, ry);
+                        } else if (inRotationMode) {
+                            ctx.fillStyle = '#9B59B6';
+                            ctx.textAlign = 'center';
+                            ctx.fillText('OPEN 🖐 (rotate)', rx, ry);
+                        } else {
+                            ctx.fillStyle = isPinching ? '#FFD700' : '#4ECDC4';
+                            ctx.textAlign = 'center';
+                            
+                            if (modelActive) {
+                                const activeObj = getActiveObject();
+                                const scalePercent = activeObj ? Math.round(activeObj.scale.x * 50) : 50;
+                                ctx.fillText(isPinching ? `Scale: ${scalePercent}%` : 'Pinch to scale', rx, ry);
+                            } else {
+                                ctx.fillText('Right hand', rx, ry);
+                            }
+                        }
                     }
+                }
+                
+                // Draw rotation connection line
+                if (isRotating && leftHandDetected && rightHandDetected) {
+                    const leftX = leftHandPos.x * canvas.width;
+                    const leftY = leftHandPos.y * canvas.height;
+                    const rightX = rightHandPos.x * canvas.width;
+                    const rightY = rightHandPos.y * canvas.height;
+                    
+                    ctx.beginPath();
+                    ctx.moveTo(leftX, leftY);
+                    ctx.lineTo(rightX, rightY);
+                    ctx.strokeStyle = '#9B59B6';
+                    ctx.lineWidth = 4;
+                    ctx.setLineDash([10, 5]);
+                    ctx.stroke();
+                    ctx.setLineDash([]);
+                    
+                    ctx.beginPath();
+                    ctx.arc(leftX, leftY, 15, 0, 2 * Math.PI);
+                    ctx.fillStyle = 'rgba(155, 89, 182, 0.5)';
+                    ctx.fill();
+                    ctx.strokeStyle = '#9B59B6';
+                    ctx.lineWidth = 3;
+                    ctx.stroke();
+                    
+                    ctx.beginPath();
+                    ctx.arc(rightX, rightY, 15, 0, 2 * Math.PI);
+                    ctx.fill();
+                    ctx.stroke();
                 }
             }
 
-            if (leftHand && !gestureTimeout) {
-                const fingerCount = countFingers(leftHand);
-                
-                const wrist = leftHand[0];
-                ctx.font = 'bold 48px Arial';
-                
-                let indicatorColor = '#FFFFFF';
-                if (fingerCount === 0) indicatorColor = '#00FF00';
-                else if (fingerCount === 3) indicatorColor = '#FFD700';
-                else if (fingerCount === 4) indicatorColor = '#FF00FF';
-                
-                ctx.fillStyle = indicatorColor;
-                ctx.textAlign = 'center';
-                ctx.fillText(fingerCount.toString(), wrist.x * canvas.width, wrist.y * canvas.height + 60);
-
-                if (fingerCount === 0) {
-                    // Fist - toggle model visibility
+            // Handle gestures
+            if (leftHandDetected && !gestureTimeout) {
+                // Fist - show/hide
+                if (leftHandFingerCount === 0) {
                     gestureTimeout = true;
                     setTimeout(() => gestureTimeout = false, 800);
                     
                     if (!modelActive) {
                         showCurrentModel();
                         modelActive = true;
-                        status.textContent = `Model ${currentModelIndex + 1}/${models.length} [${displayMode.toUpperCase()}] | ✋ 3→cycle | 🖐️ 4→toggle | ✊ Fist→hide`;
+                        const activeObj = getActiveObject();
+                        currentScale = activeObj.scale.x;
+                        targetScale = currentScale;
+                        baseScale = currentScale;
                     } else {
                         hideCurrentModel();
                         modelActive = false;
-                        status.textContent = '✊ Fist to show | ✋ 3 fingers to cycle | 🖐️ 4 fingers to toggle mode';
+                        isPinching = false;
+                        initialPinchDistance = null;
+                        isRotating = false;
+                        autoRotate = true;
                     }
-                } else if (fingerCount === 3 && modelActive) {
-                    // 3 fingers - cycle models
+                }
+                // 3 fingers - cycle models
+                else if (leftHandFingerCount === 3 && modelActive) {
                     gestureTimeout = true;
                     setTimeout(() => gestureTimeout = false, 800);
                     
                     hideCurrentModel();
                     currentModelIndex = (currentModelIndex + 1) % models.length;
                     showCurrentModel();
-                    status.textContent = `Model ${currentModelIndex + 1}/${models.length} [${displayMode.toUpperCase()}] | ✋ 3→cycle | 🖐️ 4→toggle | ✊ Fist→hide`;
-                } else if (fingerCount === 4 && modelActive) {
-                    // 4 fingers - toggle display mode
+                    
+                    const activeObj = getActiveObject();
+                    currentScale = activeObj.scale.x;
+                    targetScale = currentScale;
+                    baseScale = currentScale;
+                    currentRotationX = activeObj.rotation.x;
+                    currentRotationY = activeObj.rotation.y;
+                    targetRotationX = currentRotationX;
+                    targetRotationY = currentRotationY;
+                }
+                // 4 fingers - toggle display mode
+                else if (leftHandFingerCount === 4 && modelActive) {
                     gestureTimeout = true;
                     setTimeout(() => gestureTimeout = false, 800);
-                    
                     toggleDisplayMode();
-                    status.textContent = `Model ${currentModelIndex + 1}/${models.length} [${displayMode.toUpperCase()}] | ✋ 3→cycle | 🖐️ 4→toggle | ✊ Fist→hide`;
                 }
             }
 
-            if (!results.multiHandLandmarks || results.multiHandLandmarks.length === 0) {
-                if (modelActive) {
-                    status.textContent = `Model ${currentModelIndex + 1}/${models.length} [${displayMode.toUpperCase()}] | Show hand for gestures`;
+            // Reset pinching if right hand lost
+            if (!rightHandDetected && isPinching) {
+                isPinching = false;
+                initialPinchDistance = null;
+                pinchDistanceHistory.length = 0;
+                const activeObj = getActiveObject();
+                if (activeObj) {
+                    baseScale = activeObj.scale.x;
+                    targetScale = baseScale;
                 }
+            }
+
+            // Update status
+            if (modelActive) {
+                let hint = '';
+                if (isRotating) {
+                    hint = '🔄 ROTATING';
+                } else if (isPinching) {
+                    hint = '📐 SCALING';
+                } else {
+                    hint = '✊ hide | ✋3 cycle | 🖐️4 toggle | 🤏 scale | 🙌 rotate';
+                }
+                status.textContent = `Model ${currentModelIndex + 1}/${models.length} [${displayMode.toUpperCase()}] | ${hint}`;
+            } else {
+                status.textContent = '✊ Left FIST to show | 🤏 Pinch=scale | 🙌 Open=rotate | 🖐️ 4=toggle';
             }
         }
 
@@ -453,13 +666,68 @@
         function animate() {
             requestAnimationFrame(animate);
             
-            // Rotate active model/particles
-            if (modelActive) {
-                if (displayMode === 'solid' && models[currentModelIndex]) {
-                    models[currentModelIndex].rotation.y += 0.005;
-                } else if (displayMode === 'particle' && particleSystems[currentModelIndex]) {
-                    particleSystems[currentModelIndex].rotation.y += 0.005;
+            const activeObj = getActiveObject();
+            
+            if (modelActive && activeObj) {
+                // Both hands open (5+5) = rotation mode
+                const bothHandsOpen = leftHandDetected && rightHandDetected && 
+                                      leftHandFingerCount === 5 && rightHandFingerCount === 5;
+                
+                if (bothHandsOpen) {
+                    autoRotate = false;
+                    
+                    if (!isRotating) {
+                        isRotating = true;
+                        initialLeftHandPos = { ...leftHandPos };
+                        initialRightHandPos = { ...rightHandPos };
+                        baseRotationX = activeObj.rotation.x;
+                        baseRotationY = activeObj.rotation.y;
+                    }
+                    
+                    const avgDeltaX = ((leftHandPos.x - initialLeftHandPos.x) + 
+                                       (rightHandPos.x - initialRightHandPos.x)) / 2;
+                    const avgDeltaY = ((leftHandPos.y - initialLeftHandPos.y) + 
+                                       (rightHandPos.y - initialRightHandPos.y)) / 2;
+                    
+                    targetRotationY = baseRotationY - avgDeltaX * rotationSensitivity;
+                    targetRotationX = baseRotationX + avgDeltaY * rotationSensitivity;
+                    targetRotationX = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, targetRotationX));
+                } else {
+                    if (isRotating) {
+                        isRotating = false;
+                        initialLeftHandPos = null;
+                        initialRightHandPos = null;
+                        baseRotationX = activeObj.rotation.x;
+                        baseRotationY = activeObj.rotation.y;
+                    }
+                    
+                    if (autoRotate) {
+                        targetRotationY += 0.003;
+                    }
                 }
+                
+                // Apply smooth rotation
+                currentRotationX += (targetRotationX - currentRotationX) * rotationSmoothingFactor;
+                currentRotationY += (targetRotationY - currentRotationY) * rotationSmoothingFactor;
+                activeObj.rotation.x = currentRotationX;
+                activeObj.rotation.y = currentRotationY;
+                
+                // Pinch scaling
+                if (!isRotating && rightHandDetected && isPinching && initialPinchDistance !== null) {
+                    pinchDistanceHistory.push(pinchDistance);
+                    if (pinchDistanceHistory.length > pinchHistorySize) {
+                        pinchDistanceHistory.shift();
+                    }
+                    const smoothedPinchDistance = pinchDistanceHistory.reduce((a, b) => a + b, 0) / pinchDistanceHistory.length;
+                    
+                    const scaleFactor = smoothedPinchDistance / initialPinchDistance;
+                    const newScale = baseScale * scaleFactor;
+                    targetScale = Math.max(0.3, Math.min(5, newScale));
+                }
+                
+                // Apply smooth scaling
+                currentScale += (targetScale - currentScale) * scaleSmoothingFactor;
+                activeObj.scale.setScalar(currentScale);
             }
             
             renderer.render(scene, camera);

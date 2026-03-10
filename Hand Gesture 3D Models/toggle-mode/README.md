@@ -1,14 +1,17 @@
 # Toggle Mode
 
-Switch between solid 3D model and particle visualization.
+Switch between solid 3D model and particle visualization with full gesture controls.
 
 ## Features
 
 - **Dual Display Modes**: Solid 3D model or particle point cloud
 - **Instant Toggle**: 4-finger gesture switches modes without reloading
 - **Visual Feedback**: Header label shows current mode (SOLID/PARTICLE)
-- **Auto-Rotation**: Both modes rotate continuously
+- **Pinch Scaling**: Scale model with right hand pinch gesture
+- **Rotation Control**: Both hands open to rotate freely
+- **Auto-Rotation**: Both modes rotate when not manually controlling
 - **Gradient Colors**: Cyan-purple particle coloring
+- **Transform Sync**: Scale/rotation preserved when toggling modes
 
 ## Gesture Controls
 
@@ -17,6 +20,8 @@ Switch between solid 3D model and particle visualization.
 | ✊ Fist (0 fingers) | Left | Show/Hide model |
 | ✋ 3 Fingers | Left | Cycle to next model |
 | 🖐️ 4 Fingers | Left | Toggle Solid ↔ Particles |
+| 🤏 Pinch (thumb + index) | Right | Scale model size |
+| 🖐️🖐️ Both Open (5+5 fingers) | Both | Free rotation control |
 
 ## Running
 
@@ -42,10 +47,22 @@ function toggleDisplayMode() {
     displayMode = displayMode === 'solid' ? 'particle' : 'solid';
     showCurrentModel();
     
+    // Sync transforms between modes
+    const activeObj = getActiveObject();
+    activeObj.scale.setScalar(currentScale);
+    activeObj.rotation.x = currentRotationX;
+    activeObj.rotation.y = currentRotationY;
+    
     // Update UI label
     modeLabel.textContent = `🔄 TOGGLE MODE - ${displayMode.toUpperCase()}`;
 }
 ```
+
+### Scaling & Rotation
+- **Pinch Scaling**: 5-frame moving average smoothing + lerp (0.15)
+- **Rotation Control**: Both hands track average delta movement
+- **Auto-Rotate Speed**: 0.003 radians/frame when idle
+- **Transform Sync**: Scale and rotation preserved when switching modes
 
 ### Four-Finger Detection
 ```javascript
